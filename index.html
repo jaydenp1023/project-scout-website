@@ -25,13 +25,56 @@ footer{background:#0b2853;color:#d9e8f9;padding:36px 0}.footer-flex{display:flex
 @media(max-width:680px){body{font-size:17px}.wrap{width:calc(100% - 36px)}.head-inner{height:70px}.brand{font-size:23px}.brand-mark{width:28px;height:28px}.menu-toggle{display:flex}.nav-links{display:none;position:absolute;top:69px;left:0;right:0;background:#fff;padding:14px 18px 22px;flex-direction:column;align-items:stretch;gap:0;border-bottom:1px solid #dce5ee;box-shadow:0 16px 20px #142c4512}.nav-links.open{display:flex}.nav-links a{padding:12px 6px;font-size:18px}.nav-links .nav-button{text-align:center;padding:14px;margin-top:8px}.hero{background:linear-gradient(115deg,#f5faff 0%,#eef6fd 46%,#dfeefa 100%)}.hero-inner{min-height:410px;align-items:flex-start;padding-top:37px;padding-bottom:32px}.hero-photo{width:61%;height:100%;opacity:.74;background-position:46% 41%;mask-image:linear-gradient(90deg,transparent 0%,black 40%);-webkit-mask-image:linear-gradient(90deg,transparent 0%,black 40%)}.hero-content{max-width:79%}.hero h1{font-size:clamp(37px,9.7vw,45px);max-width:310px;line-height:1.06;margin:0 0 18px}.hero p{font-size:18px;line-height:1.45;max-width:252px;margin-bottom:24px}.hero .button-row{max-width:250px;display:flex;flex-direction:column;gap:9px}.hero .button-row a{width:100%;min-height:48px}.feature-grid{grid-template-columns:repeat(3,1fr)}.feature-row{padding:14px 6px;min-height:112px}.feature-icon{font-size:26px}.feature-row b{font-size:15px}.feature-row span{font-size:12px}.feature-row:not(:last-child):after{height:55px}.section{padding:58px 0}.split{grid-template-columns:1fr;gap:26px}.section-photo{min-height:225px}.section h2{font-size:33px}.section p{font-size:18px}.info-cards{grid-template-columns:1fr;gap:13px;margin-top:24px}.info-card{padding:21px}.home-callout{padding:53px 0}.home-callout p{font-size:18px}.page-intro{padding:31px 0}.page-intro h1{font-size:35px}.page-intro p{font-size:18px}.contracts-main{padding:16px 0 60px}.search-panel{padding:15px}.search-fields{grid-template-columns:1fr;gap:13px}.field label{font-size:17px;margin:0 0 6px}.field select,.field input{min-height:50px}.search-actions{margin-top:14px}.list-title{align-items:start;margin-top:25px;flex-direction:column;gap:6px}.list-title h2{font-size:26px}.contract-card{grid-template-columns:1fr;gap:13px;padding:18px}.contract-card h3{font-size:20px}.contract-card a{display:inline-flex;min-height:42px;align-items:center}.pricing-intro{padding:40px 0 20px}.pricing-intro h1{font-size:40px}.pricing-intro p{font-size:18px}.pricing-grid{grid-template-columns:1fr;gap:14px}.plan{min-height:auto;padding:23px}.plan h2{font-size:27px}.plan-price{font-size:44px}.plan-description{min-height:unset;margin-bottom:17px}.plan ul{margin-bottom:22px}.availability{padding:20px;margin-bottom:45px}.footer-flex{flex-direction:column}.footer-nav{gap:12px}}
 @media(min-width:681px) and (max-width:750px){.hero p{max-width:360px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.button,.subtle-button{transition:none}}
+
+/* Project Scout V5: prominent prices on home + subtle motion + approachable contact/policies */
+body{font-size:18px}
+.nav-links a{font-size:17px}
+.home-pricing{background:#f6f9fd;position:relative;overflow:hidden;isolation:isolate}
+.home-pricing::before{content:"";position:absolute;inset:-55%;z-index:-1;background:radial-gradient(ellipse 26% 22% at 18% 35%,rgba(114,166,209,.11),transparent 74%),radial-gradient(ellipse 24% 20% at 75% 54%,rgba(116,157,202,.10),transparent 78%);animation:quiet-drift 28s ease-in-out infinite alternate;pointer-events:none}
+@keyframes quiet-drift{from{transform:translate3d(-2%,0,0)}to{transform:translate3d(2%,1%,0)}}
+.section-topline{display:flex;justify-content:space-between;align-items:end;gap:22px;margin:0 0 24px}.section-topline h2{margin-bottom:8px}.section-topline p{margin:0;font-size:18px;max-width:630px}.plans-more{white-space:nowrap}
+.home-plan-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:19px}
+.home-plan{background:#fff;border:1px solid #c8d8e8;border-radius:17px;padding:28px 24px;box-shadow:0 12px 27px rgba(20,57,98,.035);display:flex;flex-direction:column;min-width:0;transition:border-color .2s,transform .2s,box-shadow .2s}
+.home-plan:hover{border-color:#7fa8cb;transform:translateY(-3px);box-shadow:0 14px 28px rgba(20,57,98,.08)}
+.home-plan-name{font-size:22px;font-weight:750;letter-spacing:-.025em}
+.home-plan-price{font-weight:850;line-height:1.1;font-size:clamp(38px,4vw,49px);letter-spacing:-.045em;margin-top:12px;color:#0a2855;white-space:nowrap}
+.home-plan-price span{font-size:17px;letter-spacing:0;font-weight:550;color:#536780}
+.home-plan-renew{font-size:17px;font-weight:750;color:#194d83;margin-top:10px;min-height:24px}
+.home-plan p{color:#4d6076;font-size:17px;line-height:1.5;margin:17px 0 20px}
+.home-plan a{margin-top:auto;font-size:17px;font-weight:750;color:#15558f;text-decoration:none;border-bottom:1px solid #9fbedb;padding-bottom:4px;width:fit-content}
+.home-plan a:hover{text-decoration:underline}
+.small-print{font-size:15px!important;margin:19px 0 0;color:#526276}
+.contact-section{background:#fff}
+.contact-layout{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:60px}
+.contact-card{border:1px solid #c7d7e7;background:#f9fbfe;border-radius:19px;padding:26px;box-shadow:var(--shadow)}
+.contact-card-title{font-size:23px;font-weight:800;margin-bottom:13px}
+.contact-link{display:flex;align-items:center;gap:16px;border-radius:11px;padding:13px 9px;color:#0b2853;text-decoration:none;overflow-wrap:anywhere}
+.contact-link:hover{background:#eaf3fc}.contact-link>span:first-child{width:37px;height:37px;display:grid;place-items:center;border-radius:10px;background:#e4eef8;font-size:22px;flex:none}
+.contact-link small{display:block;color:#516782;font-weight:550;font-size:15px}.contact-link strong{display:block;font-weight:770;font-size:clamp(16px,1.7vw,20px)}
+.contact-card-divider{border-top:1px solid #d7e1ec;margin:14px 0}.contact-card p{margin:0 0 19px;font-size:17px;line-height:1.5}.contact-card .button{font-size:16px;width:100%;padding:12px 11px}
+.pricing-bottom{background:linear-gradient(125deg,#eff5fa 0%,#f9fcff 100%);padding:60px 0 68px;border-top:1px solid #dce6f0}
+.pricing-bottom-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:65px}.pricing-bottom-copy h2{font-size:clamp(29px,3.4vw,40px);letter-spacing:-.035em;margin:10px 0 14px;line-height:1.15}
+.pricing-bottom-copy p{font-size:19px;line-height:1.62;max-width:600px;color:#40536a}
+.pricing-bottom-contact{border-left:1px solid #cbd9e8;padding-left:35px}.pricing-bottom-contact h3{font-size:24px;margin:0 0 9px}.pricing-bottom-contact p{font-size:17px;line-height:1.5;margin:0 0 18px;color:#465b73}
+.pricing-bottom-contact>a,.footer-contact-block>a{display:block;margin:11px 0;text-decoration:none;font-weight:710;overflow-wrap:anywhere}.pricing-bottom-contact>a:hover,.footer-contact-block>a:hover{text-decoration:underline}
+.policy-shortcuts{display:flex;gap:18px;margin-top:19px;font-size:16px}.policy-shortcuts a{text-decoration:underline;text-underline-offset:3px}
+.policy-banner{background:#edf4fa;padding:62px 0}.policy-banner h1{font-size:clamp(36px,4vw,53px);margin:8px 0;line-height:1.12;letter-spacing:-.04em}.policy-banner p{font-size:19px;color:#475b72;margin:0}
+.policy-body{max-width:845px;padding-top:35px;padding-bottom:85px}.policy-body .policy-updated{font-size:15px;color:#63758b;margin:0 0 38px}
+.policy-body h2{font-size:25px;letter-spacing:-.025em;margin:26px 0 9px}.policy-body p{font-size:18px;color:#384a61;line-height:1.7;margin:0 0 20px}
+.policy-body a:not(.subtle-button){color:#14558b;text-underline-offset:3px}.policy-back{margin-top:15px}
+footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr .75fr 1.1fr;gap:40px}.footer-brand{color:white;font-weight:800;font-size:23px;text-decoration:none}
+.footer-nav-block h2,.footer-contact-block h2{font-size:16px;margin:3px 0 12px;color:#fff}.footer-nav{display:flex;flex-direction:column;gap:9px}.footer-nav a,.footer-contact-block a{font-size:16px;color:#e4f0fa}
+.footer-flex p{font-size:16px}.footer-flex .footer-disclaimer{font-size:14px;color:#a9c3df}.footer-bottom{border-top:1px solid #355070;margin-top:28px;padding-top:20px;display:flex;justify-content:space-between;align-items:center;gap:15px;font-size:14px;color:#bdcee4}.footer-bottom nav{display:flex;gap:18px}.footer-bottom a{color:#e2effc;text-decoration:none}.footer-bottom a:hover{text-decoration:underline}
+@media(max-width:950px){.nav-links{gap:16px}.nav-links a{font-size:15px}.home-plan{padding:24px 17px}.home-plan-price span{display:block;margin-top:4px}.contact-layout{gap:25px}}
+@media(max-width:680px){body{font-size:18px}.nav-links a{font-size:18px}.home-plan-grid{grid-template-columns:1fr;gap:14px}.home-plan{padding:23px;min-height:0}.home-plan-price span{display:inline}.home-plan p{margin:12px 0 17px}.section-topline{display:block}.section-topline .plans-more{margin-top:16px}.contact-layout{grid-template-columns:1fr;gap:22px}.contact-card{padding:19px}.contact-link{padding:11px 3px;gap:9px}.contact-link strong{font-size:17px}.contact-card .button{font-size:15px}.pricing-bottom-grid{grid-template-columns:1fr;gap:23px}.pricing-bottom-contact{padding-left:0;border-left:0;border-top:1px solid #cbd9e8;padding-top:19px}.pricing-bottom{padding:45px 0}.footer-flex{grid-template-columns:1fr;gap:20px}.footer-nav{flex-direction:row;gap:11px 16px}.footer-bottom{flex-direction:column;align-items:start}.policy-banner{padding:39px 0}.policy-body{padding-top:25px;padding-bottom:65px}}
+@media(prefers-reduced-motion:reduce){.home-pricing::before{animation:none}.home-plan{transition:none}.home-plan:hover{transform:none}}
 </style>
 </head>
 <body>
 <header class="site-head"><div class="wrap head-inner">
 <a class="brand" href="#home" aria-label="Project Scout home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M5 7h13l-6 6 11 5-11 8 3-10-9-4z" fill="white"/></svg></span>Project Scout</a>
 <button class="menu-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="site-nav">☰</button>
-<nav id="site-nav" class="nav-links" aria-label="Main navigation"><a href="#home" data-nav="home">Home</a><a href="#contracts" data-nav="contracts">Contracts</a><a href="#pricing" data-nav="pricing">Pricing</a><a href="#about">About</a><a class="nav-button" href="#pricing">Get Started</a></nav>
+<nav id="site-nav" class="nav-links" aria-label="Main navigation"><a href="#home" data-nav="home">Home</a><a href="#contracts" data-nav="contracts">Contracts</a><a href="#pricing" data-nav="pricing">Pricing</a><a href="#about">About</a><a href="#contact">Contact</a><a class="nav-button" href="#pricing">Get Started</a></nav>
 </div></header>
 <main>
 <section class="page" data-page="home" id="home-view">
@@ -47,8 +90,24 @@ footer{background:#0b2853;color:#d9e8f9;padding:36px 0}.footer-flex{display:flex
   </div></div>
   <div class="section"><div class="wrap split"><div class="section-photo" role="img" aria-label="Contractors reviewing plans at a construction site"></div><div><div class="eyebrow">Built for working contractors</div><h2>Built for Contractors.</h2><p>Clear opportunities, straightforward information, and less time spent searching. Made for businesses that would rather get to work.</p><a href="#contracts" class="subtle-button">See Contract Preview</a></div></div></div>
   <div class="section section-soft" id="how"><div class="wrap"><div class="eyebrow">Simple from the start</div><h2>How Project Scout Works</h2><div class="info-cards"><div class="info-card"><span class="step">01</span><h3>Find your trade</h3><p>Search opportunities by the type of work your company does.</p></div><div class="info-card"><span class="step">02</span><h3>Check the details</h3><p>Review the listing and follow the link to the issuing agency.</p></div><div class="info-card"><span class="step">03</span><h3>Decide what fits</h3><p>See what is worth a closer look before you spend time preparing a bid.</p></div></div></div></div>
-  <div class="section" id="about"><div class="wrap"><div class="eyebrow">About the team</div><h2>Built with blue-collar experience.</h2><p>Project Scout started with firsthand experience working in the trades. We know your time is better spent running jobs than chasing bid websites. Our goal is to make finding public work a lot simpler.</p></div></div>
-  <div class="home-callout"><div class="wrap"><h2>Less searching. More opportunity.</h2><p>Explore the public contract preview and see how Project Scout is taking shape.</p><a href="#contracts" class="button">Explore Contracts</a></div></div>
+  
+<div class="section home-pricing" id="plans"><div class="wrap">
+  <div class="eyebrow">Simple, straightforward pricing</div>
+  <div class="section-topline"><div><h2>Plans for the way you work.</h2><p>Choose the level of support that fits your business. No confusing packages.</p></div><a class="subtle-button plans-more" href="#pricing">Compare plans</a></div>
+  <div class="home-plan-grid" aria-label="Project Scout planned prices">
+    <article class="home-plan"><div class="home-plan-name">Starter</div><div class="home-plan-price">$25 <span>first month</span></div><div class="home-plan-renew">Then $35/month</div><p>Find public bidding opportunities without digging through sites yourself.</p><a href="#pricing" aria-label="Learn more about Starter plan">View plan details <span aria-hidden="true">→</span></a></article>
+    <article class="home-plan"><div class="home-plan-name">Pro</div><div class="home-plan-price">$49 <span>/month</span></div><div class="home-plan-renew">More tools to stay on top of bids</div><p>Planned matching tools and email alerts to help you stay organized.</p><a href="#pricing" aria-label="Learn more about Pro plan">View plan details <span aria-hidden="true">→</span></a></article>
+    <article class="home-plan"><div class="home-plan-name">Business</div><div class="home-plan-price">$99 <span>/month</span></div><div class="home-plan-renew">Agent-assisted search</div><p>Planned hands-on contract searches for businesses that need extra support.</p><a href="#pricing" aria-label="Learn more about Business plan">View plan details <span aria-hidden="true">→</span></a></article>
+  </div>
+  <p class="small-print">Plans are previews. Subscriptions are not open yet; services will be available once launched.</p>
+</div></div>
+<div class="section" id="about"><div class="wrap"><div class="eyebrow">About the team</div><h2>We respect the work behind every job.</h2><p>Project Scout was started with firsthand blue-collar experience. We know good contractors have enough on their plate without spending nights chasing bid websites. Our goal is simple: make finding public work easier so you can focus on what you do best.</p></div></div>
+  
+<div class="section contact-section" id="contact"><div class="wrap contact-layout">
+ <div><div class="eyebrow">Contact Project Scout</div><h2>Real questions? Real answers.</h2><p>Have a question about an opportunity or our upcoming plans? Reach out directly. We keep things simple.</p><a class="subtle-button" href="mailto:projectscout.business@gmail.com?subject=Project%20Scout%20Question">Email our team</a></div>
+ <div class="contact-card"><div class="contact-card-title">Get in touch</div><a class="contact-link" href="tel:+13348612826"><span aria-hidden="true">☎</span><span><small>Phone</small><strong>(334) 861-2826</strong></span></a><a class="contact-link" href="mailto:projectscout.business@gmail.com"><span aria-hidden="true">✉</span><span><small>Email</small><strong>projectscout.business@gmail.com</strong></span></a><div class="contact-card-divider"></div><p>Want one free contract opportunity matched to your trade? Tell us your trade and city, and we’ll look for a relevant open listing.</p><a class="button" href="mailto:projectscout.business@gmail.com?subject=Free%20contract%20opportunity%20request&amp;body=Trade%3A%20%0ACity%2FState%3A%20%0ABusiness%20name%3A%20">Request one free opportunity</a></div>
+</div></div>
+<div class="home-callout"><div class="wrap"><h2>Less searching. More opportunity.</h2><p>Explore the public contract preview and see how Project Scout is taking shape.</p><a href="#contracts" class="button">Explore Contracts</a></div></div>
 </section>
 <section class="page" data-page="contracts" id="contracts-view" hidden>
  <div class="page-intro"><div class="wrap"><h1>Contract Opportunities</h1><p>Search public bids by trade, location, and deadline.</p></div></div>
@@ -72,11 +131,42 @@ footer{background:#0b2853;color:#d9e8f9;padding:36px 0}.footer-flex{display:flex
   <article class="plan"><h2>Pro</h2><div class="plan-price">$49<small> / month</small></div><p class="plan-description">For contractors who want more help staying organized.</p><hr/><ul><li>Everything in Starter</li><li>Personalized email alerts</li><li>More matching tools</li></ul><button class="button" disabled title="Subscriptions are not open yet">Coming Soon</button></article>
   <article class="plan business"><h2>Business</h2><div class="plan-price">$99<small> / month</small></div><p class="plan-description">Extra support for busy businesses.</p><hr/><ul><li>Everything in Pro</li><li>Agent-assisted contract search</li><li>Custom opportunity help</li></ul><button class="button" disabled title="Subscriptions are not open yet">Coming Soon</button></article>
  </div><p class="plan-note">These are proposed plans, not subscriptions currently available for purchase. Business agent-assisted searches will have defined service limits when launched.</p>
- <div class="availability"><h2>We're preparing to launch.</h2><p>Customer accounts, subscriptions, ongoing alerts, and agent services are still being built. You can explore the public contract preview now, and we'll only open paid plans after these features are ready.</p></div>
+<div class="availability"><h2>We're preparing to launch.</h2><p>Customer accounts, subscriptions, ongoing alerts, and agent services are still being built. You can explore the public contract preview now, and we'll only open paid plans after these features are ready.</p></div>
  </div>
+
+<div class="pricing-bottom"><div class="wrap"><div class="pricing-bottom-grid">
+ <div class="pricing-bottom-copy"><div class="eyebrow">About our team</div><h2>Built for the people doing the work.</h2><p>We come from a blue-collar background, and we know how much effort goes into a job done right. Your time matters. Project Scout is here to help you spend less of it searching for the next opportunity.</p></div>
+ <div class="pricing-bottom-contact"><h3>Have a question?</h3><p>Reach out before you choose a plan. We're happy to explain how Project Scout works.</p><a href="tel:+13348612826">(334) 861-2826</a><a href="mailto:projectscout.business@gmail.com">projectscout.business@gmail.com</a><div class="policy-shortcuts"><a href="#privacy">Privacy</a><a href="#terms">Terms</a></div></div>
+ </div></div></div>
+</section>
+
+<section id="privacy-view" class="page policy-page" data-page="privacy" hidden>
+ <div class="policy-banner"><div class="wrap"><div class="eyebrow">Policies</div><h1>Privacy Policy</h1><p>Clear information about how this early website works.</p></div></div>
+ <div class="wrap policy-body"><p class="policy-updated">Last updated: November 6, 2026 · Public preview website</p>
+ <h2>Information you share</h2><p>Our public preview does not currently offer customer accounts or take payments. If you email or call us, we may use the information you share, such as your name, business, and contact details, to answer your question or respond to your request.</p>
+ <h2>Website hosting</h2><p>This website is hosted through GitHub Pages. The hosting provider may process routine technical information, such as access logs, as part of delivering the site. Project Scout does not currently use an advertising tracker on this page.</p>
+ <h2>How we use your details</h2><p>We use information you voluntarily send us to communicate about your request. We don't sell that correspondence to advertisers. Please avoid sending sensitive financial, account, or identity information by ordinary email.</p>
+ <h2>Your questions and requests</h2><p>If you want to ask about correspondence you've sent or request that we delete it, email <a href="mailto:projectscout.business@gmail.com">projectscout.business@gmail.com</a>. We will review your request and respond.</p>
+ <h2>Future services</h2><p>If we add registrations, payments, or automated customer features, we'll update this policy to explain the relevant data processing and service providers before launching them.</p>
+ <a class="subtle-button policy-back" href="#home">Back to home</a></div>
+</section>
+<section id="terms-view" class="page policy-page" data-page="terms" hidden>
+ <div class="policy-banner"><div class="wrap"><div class="eyebrow">Policies</div><h1>Terms of Use</h1><p>Please read these notes about the Project Scout public preview.</p></div></div>
+ <div class="wrap policy-body"><p class="policy-updated">Last updated: November 6, 2026 · Public preview website</p>
+ <h2>What Project Scout is</h2><p>Project Scout is an independent service designed to help people discover publicly advertised government bidding opportunities. We are not a government agency and do not issue, manage, or award the solicitations we link to.</p>
+ <h2>Verify opportunities yourself</h2><p>Preview listings may be limited, delayed, or outdated. Always verify the bid deadline, eligibility rules, documents, addenda, and current status with the issuing agency before deciding to bid. Project Scout does not guarantee eligibility, contract awards, or business results.</p>
+ <h2>Subscription availability</h2><p>Prices and plan features shown on this site are proposals only. Customer accounts and paid subscriptions are not yet available here. Subscription terms, cancellation details, and any applicable refund information will be provided before paid service launches.</p>
+ <h2>Acceptable use</h2><p>Please use the public preview lawfully and don't attempt to disrupt the site or impersonate others when contacting us.</p>
+ <h2>Contact us</h2><p>Questions can be directed to <a href="mailto:projectscout.business@gmail.com">projectscout.business@gmail.com</a> or <a href="tel:+13348612826">(334) 861-2826</a>.</p>
+ <a class="subtle-button policy-back" href="#home">Back to home</a></div>
 </section>
 </main>
-<footer><div class="wrap footer-flex"><div><strong>Project Scout</strong><p>Independent public contract discovery. We don't issue government solicitations or guarantee bid eligibility.</p></div><nav class="footer-nav" aria-label="Footer navigation"><a href="#home">Home</a><a href="#contracts">Contracts</a><a href="#pricing">Pricing</a><a href="#about">About</a></nav></div></footer>
+<footer><div class="wrap footer-stack">
+ <div class="footer-flex"><div><a class="footer-brand" href="#home">Project Scout</a><p>Helping working businesses find public contract opportunities with less hassle.</p><p class="footer-disclaimer">Independent service · Not a government agency · Always verify details with the issuer.</p></div>
+ <div class="footer-nav-block"><h2>Explore</h2><nav aria-label="Footer navigation" class="footer-nav"><a href="#home">Home</a><a href="#contracts">Contracts</a><a href="#pricing">Pricing</a><a href="#about">About Us</a><a href="#contact">Contact</a></nav></div>
+ <div class="footer-contact-block"><h2>Contact</h2><a href="tel:+13348612826">(334) 861-2826</a><a href="mailto:projectscout.business@gmail.com">projectscout.business@gmail.com</a></div></div>
+ <div class="footer-bottom"><span>© 2026 Project Scout</span><nav aria-label="Policy links"><a href="#privacy">Privacy Policy</a><a href="#terms">Terms of Use</a></nav></div>
+</div></footer>
 <script>
 (function(){
  'use strict';
@@ -87,7 +177,7 @@ footer{background:#0b2853;color:#d9e8f9;padding:36px 0}.footer-flex{display:flex
  function closeMenu(){menu.classList.remove('open');menuButton.setAttribute('aria-expanded','false');menuButton.setAttribute('aria-label','Open navigation');}
  menuButton.addEventListener('click',()=>{const open=menu.classList.toggle('open');menuButton.setAttribute('aria-expanded',String(open));menuButton.setAttribute('aria-label',open?'Close navigation':'Open navigation');});
  menu.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));
- function showPage(){const route=(location.hash||'#home').slice(1);const page=route==='contracts'?'contracts':route==='pricing'?'pricing':'home';pages.forEach(p=>p.hidden=p.dataset.page!==page);links.forEach(a=>{if(a.dataset.nav===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});document.title=(page==='contracts'?'Contracts':page==='pricing'?'Pricing':'Government Contracts Without the Headache')+' | Project Scout';if(route==='about'||route==='how'){requestAnimationFrame(()=>{const el=document.getElementById(route);if(el)el.scrollIntoView();});}else{window.scrollTo({top:0,behavior:'instant'});}if(page==='contracts')render();}
+ function showPage(){const route=(location.hash||'#home').slice(1);const page=['contracts','pricing','privacy','terms'].includes(route)?route:'home';pages.forEach(p=>p.hidden=p.dataset.page!==page);links.forEach(a=>{if(a.dataset.nav===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});document.title=({contracts:'Contracts',pricing:'Pricing',privacy:'Privacy Policy',terms:'Terms of Use',home:'Government Contracts Without the Headache'}[page])+' | Project Scout';if(route==='about'||route==='how'||route==='contact'||route==='plans'){requestAnimationFrame(()=>{const el=document.getElementById(route);if(el)el.scrollIntoView();});}else{window.scrollTo({top:0,behavior:'instant'});}if(page==='contracts')render();}
  window.addEventListener('hashchange',showPage);
  const form=document.getElementById('search-form'),trade=document.getElementById('trade'),txt=document.getElementById('search-text'),deadline=document.getElementById('deadline');
  const result=document.getElementById('contract-list'),cnt=document.getElementById('result-count'),more=document.getElementById('load-more');
