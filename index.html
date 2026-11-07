@@ -205,6 +205,8 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
 .verification-help button{background:transparent;color:#0b2853;border:1px solid #0b2853;border-radius:8px;padding:10px 12px;margin:6px 6px 0 0;font-weight:650;cursor:pointer}
 .verification-help button:disabled{opacity:.55;cursor:wait}
 #load-more[hidden]{display:none!important}
+.contract-related{border:1px solid #c8d8e7}
+.contract-related-label{display:inline-flex;margin:0 0 12px;background:#e6eff8;color:#16446e;padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700}
 .account-status[data-type='success']{background:#e5f7ed!important;color:#145d37!important;border:1px solid #48a870!important;font-size:16px;font-weight:750;padding:16px;border-radius:10px}
 </style>
 </head>
@@ -412,7 +414,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
  const BASE='https://hbsikbfsxqgeutskisnx.supabase.co';
  const STATES={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'Washington, DC',PR:'Puerto Rico',GU:'Guam',VI:'U.S. Virgin Islands',AS:'American Samoa',MP:'Northern Mariana Islands'};
  const DAY=86400000,PAGE=60,allowedPlans=new Set(['starter','pro','business']);
- let plan=null,userId=null,profile=null,saved=new Set(),records=[],premiumTeasers=[],offset=0,hasMore=false,totalCount=null;
+ let plan=null,userId=null,profile=null,saved=new Set(),records=[],premiumTeasers=[],exactMatchCount=0,relatedShown=false,offset=0,hasMore=false,totalCount=null;
  let queryId=0,membershipPending=false,loading=false,statusError='',previewFetched=false;
  function elt(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!==undefined)x.textContent=text;return x;}
  function localToday(){return new Date().toISOString().slice(0,10);}
@@ -458,7 +460,9 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   return true;
  }
  function makeCard(x){
-  const card=elt('article','contract-card'),body=elt('div','contract-body'),heading=elt('h3','',x.title||'Untitled opportunity');body.append(heading);
+  const card=elt('article','contract-card'),body=elt('div','contract-body'),heading=elt('h3','',x.title||'Untitled opportunity');
+  if(x.related){card.classList.add('contract-related');body.append(elt('span','label-soft contract-related-label','Related result · '+(x.related_reason||'broader search')));}
+  body.append(heading);
   const meta=elt('div','contract-meta');
   meta.append(elt('span','label-soft',sourceLabel(x)));
   meta.append(elt('span','',STATES[x.state]|| (x.state==='UN'?'Location unspecified':x.state||'Location unspecified')));
@@ -484,6 +488,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
 
  function makeTeaser(item){
   const card=elt('article','contract-card preview-teaser');
+  if(item.related)card.classList.add('preview-related');
   const behind=elt('div','preview-teaser-content');behind.setAttribute('aria-hidden','true');
   behind.append(elt('span','preview-match-badge',String(Math.round(Number(item.match_percent)||0))+'% estimated relevance'));
   behind.append(elt('div','preview-blur-line preview-blur-line-wide'));
@@ -492,7 +497,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   const overlay=elt('div','preview-teaser-overlay');
   overlay.append(elt('strong','',item.rank===1?'Top preview result · Members only':'Another matching result · Members only'));
   const location=STATES[item.state]||item.state||'Nationwide';
-  overlay.append(elt('p','',(item.suggested_trade||'Government contract')+' · '+location));
+  overlay.append(elt('p','',(item.related?'Related option · ':'')+(item.suggested_trade||'Government contract')+' · '+location));
   overlay.append(elt('p','','Match percentage and listing details are blurred until upgrade.'));
   const link=elt('a','','Unlock full search →');link.href='#pricing';overlay.append(link);
   card.append(overlay);return card;
@@ -525,16 +530,20 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
    note.textContent='ⓘ Nationwide records combine SAM.gov and imported state registries. Source coverage varies by state and the full SAM.gov archive was scanned on November 7, 2026; fresh updates are scheduled. Trade tags and match percentages are estimates, not bid eligibility or win probabilities. Verify every opportunity at the official site.';
   }else{banner.dataset.state='preview';banner.replaceChildren(elt('span','',membershipPending?'Checking account access…':statusError?'Account access unavailable: '+statusError:'Free nationwide preview · No account needed'));
    const a=elt('a','','Sign in for full search →');a.href='#account';banner.append(a);
-   note.textContent='ⓘ Free previews are genuine imported records. Estimated relevance percentages use available listing details and selected filters — they are not chances of winning a bid. Full search and saved bids require an active Sandbox membership. Verify every listing at the official source.';
+   note.textContent=relatedShown
+    ?'ⓘ No exact matches? Related contracts are shown and clearly labeled so you can discover opportunities outside your filters. Relevance % is only an estimate, not a chance of winning. Confirm every deadline and eligibility at the official source.'
+    :'ⓘ Free previews are real imported records. Match percentages estimate relevance, not chances of winning. Full search and saved bids require an active Sandbox membership. Verify deadlines and eligibility at the official source.';
   }
  }
- function render(){setNotice();result.replaceChildren();const found=records.filter(localMatches);
+ function render(){setNotice();result.replaceChildren();const found=plan?records.filter(localMatches):records;
   if(plan){const sorted=[...found].sort((a,b)=>(estimate(b)?.pct||0)-(estimate(a)?.pct||0)||String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));for(const x of sorted)result.append(makeCard(x));
    cnt.textContent=(totalCount!==null?totalCount+' indexed matches · ':'')+sorted.length+' shown'+(hasMore?' · Load more available':'');
   }else{
    for(const x of found)result.append(makeCard(x));
    for(const teaser of premiumTeasers)result.append(makeTeaser(teaser));
-   cnt.textContent=found.length+' free listings'+(premiumTeasers.length?' · '+premiumTeasers.length+' member-only previews':'');
+   cnt.textContent=exactMatchCount===0 && found.length
+    ?'No exact matches · '+found.length+' related contracts to explore'
+    :found.length+' free listings'+(premiumTeasers.length?' · '+premiumTeasers.length+' member-only previews':'');
   }
   if(!found.length&&(plan||!premiumTeasers.length)){
    const message=loading?'Loading opportunities…':statusError?'The contract preview could not load. Please search again in a moment.':plan?'No results for these filters. Try another trade, state, or keyword.':'No current contracts match these filters. Try another trade, state, or keyword.';
@@ -543,17 +552,23 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   more.hidden=plan?!hasMore:!(found.length||premiumTeasers.length);
   more.textContent=plan?'Show More Contracts':'Unlock Full Contract Search';
   more.disabled=loading;
+  if(!loading && window.projectScoutShowFirstContract){
+    const first=result.querySelector('.contract-card:not(.preview-teaser)')||result.querySelector('.contract-card');
+    if(first){window.projectScoutShowFirstContract=false;requestAnimationFrame(()=>first.scrollIntoView({behavior:'smooth',block:'start'}));}
+  }
  }
  async function fetchPreview(){
-  const token=++queryId;loading=true;records=[];premiumTeasers=[];statusError='';render();
+  const token=++queryId;loading=true;records=[];premiumTeasers=[];exactMatchCount=0;relatedShown=false;statusError='';render();
   try{
    const params=new URLSearchParams({state:state.value,source:source.value,trade:trade.value,q:keyword.value.trim().slice(0,50),deadline:deadline.value});
-   const response=await fetch(BASE+'/functions/v1/project-scout-public-preview-v2?'+params.toString());
+   const response=await fetch(BASE+'/functions/v1/project-scout-public-preview-v3?'+params.toString());
    const data=await response.json().catch(()=>({}));
    if(!response.ok)throw new Error(data.error||'Preview unavailable');
    if(token!==queryId||plan)return;
    records=Array.isArray(data.opportunities)?data.opportunities:[];
    premiumTeasers=Array.isArray(data.teasers)?data.teasers:[];
+   exactMatchCount=Math.max(0,Number(data.matching_count)||0);
+   relatedShown=!!data.related_shown;
    previewFetched=true;statusError='';
   }catch(e){if(token===queryId)statusError=e?.message||'Preview unavailable';}
   finally{if(token===queryId){loading=false;render();}}
@@ -607,7 +622,10 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   document.title=({contracts:'Contracts',pricing:'Pricing',privacy:'Privacy Policy',terms:'Terms of Use',account:'My Account',home:'Government Contracts Without the Headache'}[page])+' | Project Scout';
   if(['about','how','contact','plans'].includes(route)){requestAnimationFrame(()=>{const e=document.getElementById(route);if(e)e.scrollIntoView();});}
   else window.scrollTo({top:0,behavior:'instant'});
-  if(page==='contracts')void refreshMembership();
+  if(page==='contracts'){
+   void refreshMembership();
+   if(window.projectScoutShowFirstContract)requestAnimationFrame(()=>document.querySelector('.list-title')?.scrollIntoView({block:'start',behavior:'smooth'}));
+  }
  }
  form.addEventListener('submit',e=>{e.preventDefault();if(plan)void fetchPaid(true);else void fetchPreview();document.querySelector('.list-title').scrollIntoView({behavior:'smooth',block:'start'});});
  more.addEventListener('click',()=>{if(plan&&hasMore&&!loading)void fetchPaid(false);else if(!plan)window.location.hash='#pricing';});
@@ -632,7 +650,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   const member=document.getElementById('account-member');
   const link=document.getElementById('account-nav-link');
   const forms={login:document.getElementById('auth-form-login'),signup:document.getElementById('auth-form-signup'),forgot:document.getElementById('auth-form-forgot'),newpassword:document.getElementById('auth-form-newpassword')};
-  let client=null, currentUser=null, recoveryMode=false, activeMode='login', verificationPendingEmail='';
+  let client=null, currentUser=null, recoveryMode=false, activeMode='login', verificationPendingEmail='',loadedProfileId='',loadingProfileId='',profileDirty=false;
   const baseUrl=window.location.origin+window.location.pathname;
   // The existing verified Site URL is sufficient, and avoids an extra redirect allow-list entry.
   const verifyReturnUrl=baseUrl;
@@ -644,7 +662,39 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   function busy(form,active){const b=form.querySelector('button[type="submit"]');if(b){b.disabled=active;b.setAttribute('aria-busy',String(active));}}
   function setMode(mode){activeMode=mode;clearMessage();if(mode!=='signup')verifyHelp.hidden=true;for(const [name,form] of Object.entries(forms))form.hidden=name!==mode;const tabLogin=document.getElementById('auth-tab-login'),tabSignup=document.getElementById('auth-tab-signup');tabLogin.setAttribute('aria-selected',String(mode==='login'));tabSignup.setAttribute('aria-selected',String(mode==='signup'));document.querySelector('.account-switch').hidden=(mode==='forgot'||mode==='newpassword');}
   function updateView(){guest.hidden=!!currentUser||recoveryMode;member.hidden=!currentUser||recoveryMode;forms.newpassword.hidden=!recoveryMode;link.textContent=currentUser?'My Account':'Sign In';if(!currentUser&&!recoveryMode)setMode(activeMode==='signup'?'signup':'login');}
-  async function loadProfile(){if(!client||!currentUser)return;refreshBilling();document.getElementById('member-email').textContent=currentUser.email||'Signed in';const {data,error}=await client.from('contractor_profiles').select('company_name,trade,city,state').eq('user_id',currentUser.id).maybeSingle();if(error){showMessage('We could not load your preferences: '+error.message,true);return;}document.getElementById('profile-company').value=data?.company_name||'';document.getElementById('profile-trade').value=data?.trade||'';document.getElementById('profile-city').value=data?.city||'';document.getElementById('profile-state').value=data?.state||'';}
+  const profileForm=document.getElementById('profile-form');
+  profileForm.addEventListener('input',()=>{profileDirty=true;});
+  profileForm.addEventListener('change',()=>{profileDirty=true;});
+  async function loadProfile(){
+    if(!client||!currentUser)return;
+    const id=currentUser.id;
+    document.getElementById('member-email').textContent=currentUser.email||'Signed in';
+    // Preserve a form the customer is currently editing; auth token refresh must not reset fields.
+    if(loadedProfileId===id||loadingProfileId===id||profileDirty)return;
+    loadingProfileId=id;
+    try{
+      const {data:auth,error:authError}=await client.auth.getSession();
+      if(authError||!auth?.session||auth.session.user?.id!==id){
+        showMessage('Your business details could not be loaded because this browser has no active login session. Please sign in again in the same browser.',true);
+        return;
+      }
+      const {data,error}=await client.from('contractor_profiles')
+        .select('company_name,trade,city,state').eq('user_id',id).maybeSingle();
+      if(error){
+        showMessage('You are signed in, but we could not load your saved business details: '+error.message+'. You can still enter your details and try saving.',true);
+        return;
+      }
+      if(currentUser?.id!==id||profileDirty)return;
+      document.getElementById('profile-company').value=data?.company_name||'';
+      document.getElementById('profile-trade').value=data?.trade||'';
+      document.getElementById('profile-city').value=data?.city||'';
+      document.getElementById('profile-state').value=data?.state||'';
+      loadedProfileId=id;
+      void refreshBilling();
+    }catch(err){
+      showMessage('Could not load your preferences. Your session is still open. Please retry or save your details: '+(err?.message||'Network error'),true);
+    }finally{if(loadingProfileId===id)loadingProfileId='';}
+  }
   const tabLogin=document.getElementById('auth-tab-login'),tabSignup=document.getElementById('auth-tab-signup');
   tabLogin.addEventListener('click',()=>setMode('login'));tabSignup.addEventListener('click',()=>setMode('signup'));
   document.getElementById('forgot-link').addEventListener('click',()=>{setMode('forgot');document.getElementById('forgot-email').value=document.getElementById('login-email').value;});
@@ -861,7 +911,50 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   });
   forms.forgot.addEventListener('submit',async event=>{event.preventDefault();busy(forms.forgot,true);clearMessage();try{const {error}=await client.auth.resetPasswordForEmail(document.getElementById('forgot-email').value.trim(),{redirectTo:baseUrl});if(error)throw error;showMessage('If that email has an account, you will receive a password reset link.');}catch(e){showMessage(e?.message||'Could not send the reset email.',true);}finally{busy(forms.forgot,false);}});
   forms.newpassword.addEventListener('submit',async event=>{event.preventDefault();busy(forms.newpassword,true);clearMessage();try{const {error}=await client.auth.updateUser({password:document.getElementById('recovery-password').value});if(error)throw error;recoveryMode=false;const {data}=await client.auth.getUser();currentUser=data.user;updateView();await loadProfile();showMessage('Your password has been updated.');window.location.hash='#account';}catch(e){showMessage(e?.message||'Could not update your password.',true);}finally{busy(forms.newpassword,false);}});
-  document.getElementById('profile-form').addEventListener('submit',async event=>{event.preventDefault();if(!currentUser)return;const form=event.currentTarget;busy(form,true);clearMessage();try{const payload={user_id:currentUser.id,company_name:document.getElementById('profile-company').value.trim(),trade:document.getElementById('profile-trade').value,city:document.getElementById('profile-city').value.trim(),state:document.getElementById('profile-state').value.trim(),updated_at:new Date().toISOString()};const {error}=await client.from('contractor_profiles').upsert(payload,{onConflict:'user_id'});if(error)throw error;showMessage('Business preferences saved.');window.dispatchEvent(new Event('projectscout-profile-saved'));}catch(e){showMessage(e?.message||'Could not save preferences.',true);}finally{busy(form,false);}});
+  profileForm.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!currentUser){
+      setMode('login');showMessage('Please sign in before saving your business preferences.',true);return;
+    }
+    const form=event.currentTarget;
+    busy(form,true);clearMessage();
+    try{
+      const {data:auth,error:authError}=await client.auth.getSession();
+      if(authError||!auth?.session?.user||auth.session.user.id!==currentUser.id)
+        throw new Error('Your login session is missing. Please log out, then sign in again on this browser before saving.');
+      const payload={
+        user_id:auth.session.user.id,
+        company_name:document.getElementById('profile-company').value.trim(),
+        trade:document.getElementById('profile-trade').value,
+        city:document.getElementById('profile-city').value.trim(),
+        state:document.getElementById('profile-state').value.trim(),
+        updated_at:new Date().toISOString()
+      };
+      const {data:saved,error}=await client.from('contractor_profiles')
+        .upsert(payload,{onConflict:'user_id'}).select('user_id,trade,state').single();
+      if(error)throw error;
+      if(!saved||saved.user_id!==payload.user_id)throw new Error('We could not confirm that your preferences were saved. Please try again.');
+      profileDirty=false;
+      loadedProfileId=payload.user_id;
+      window.dispatchEvent(new Event('projectscout-profile-saved'));
+      // Set the search filters using the newly saved business preferences.
+      const trade=document.getElementById('trade');
+      if(Array.from(trade.options).some(o=>o.value===payload.trade))trade.value=payload.trade;
+      else trade.value='all';
+      const state=document.getElementById('state');
+      const choice=Array.from(state.options).find(o=>o.value.toUpperCase()===payload.state.toUpperCase()||o.textContent.trim().toLowerCase()===payload.state.toLowerCase());
+      state.value=choice?choice.value:'ALL';
+      document.getElementById('search-text').value='';
+      document.getElementById('deadline').value='all';
+      document.getElementById('source').value='all';
+      window.projectScoutShowFirstContract=true;
+      showMessage('✓ Preferences saved! Opening your contract opportunities now.',false,true);
+      window.location.hash='#contracts';
+      if(window.location.hash==='#contracts')window.dispatchEvent(new Event('projectscout-profile-saved'));
+    }catch(e){
+      showMessage('Your business details were not saved: '+(e?.message||'Please try again.'),true);
+    }finally{busy(form,false);}
+  });
   document.getElementById('logout-button').addEventListener('click',async()=>{clearMessage();const {error}=await client.auth.signOut();if(error){showMessage(error.message,true);return;}currentUser=null;recoveryMode=false;updateView();showMessage('You have signed out.');window.location.hash='#account';});
   let authEventSerial=0;
   client.auth.onAuthStateChange((event,session)=>{
@@ -870,7 +963,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
     // Downstream listeners fetch membership/user data; doing that inside the auth callback can deadlock supabase-js.
     setTimeout(()=>{
       if(serial!==authEventSerial)return;
-      if(event==='SIGNED_OUT'){currentUser=null;recoveryMode=false;}
+      if(event==='SIGNED_OUT'){currentUser=null;recoveryMode=false;loadedProfileId='';loadingProfileId='';profileDirty=false;}
       else if(session?.user){currentUser=session.user;}
       else if(event==='INITIAL_SESSION'){
         // An older initial null session must not overwrite a freshly successful password sign-in.
