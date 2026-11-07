@@ -205,6 +205,8 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
 .verification-help button{background:transparent;color:#0b2853;border:1px solid #0b2853;border-radius:8px;padding:10px 12px;margin:6px 6px 0 0;font-weight:650;cursor:pointer}
 .verification-help button:disabled{opacity:.55;cursor:wait}
 #load-more[hidden]{display:none!important}
+.contract-related{border:1px solid #c8d8e7}
+.contract-related-label{display:inline-flex;margin:0 0 12px;background:#e6eff8;color:#16446e;padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700}
 .account-status[data-type='success']{background:#e5f7ed!important;color:#145d37!important;border:1px solid #48a870!important;font-size:16px;font-weight:750;padding:16px;border-radius:10px}
 </style>
 </head>
@@ -412,7 +414,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
  const BASE='https://hbsikbfsxqgeutskisnx.supabase.co';
  const STATES={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'Washington, DC',PR:'Puerto Rico',GU:'Guam',VI:'U.S. Virgin Islands',AS:'American Samoa',MP:'Northern Mariana Islands'};
  const DAY=86400000,PAGE=60,allowedPlans=new Set(['starter','pro','business']);
- let plan=null,userId=null,profile=null,saved=new Set(),records=[],premiumTeasers=[],offset=0,hasMore=false,totalCount=null;
+ let plan=null,userId=null,profile=null,saved=new Set(),records=[],premiumTeasers=[],exactMatchCount=0,relatedShown=false,offset=0,hasMore=false,totalCount=null;
  let queryId=0,membershipPending=false,loading=false,statusError='',previewFetched=false;
  function elt(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!==undefined)x.textContent=text;return x;}
  function localToday(){return new Date().toISOString().slice(0,10);}
@@ -458,7 +460,9 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   return true;
  }
  function makeCard(x){
-  const card=elt('article','contract-card'),body=elt('div','contract-body'),heading=elt('h3','',x.title||'Untitled opportunity');body.append(heading);
+  const card=elt('article','contract-card'),body=elt('div','contract-body'),heading=elt('h3','',x.title||'Untitled opportunity');
+  if(x.related){card.classList.add('contract-related');body.append(elt('span','label-soft contract-related-label','Related result · '+(x.related_reason||'broader search')));}
+  body.append(heading);
   const meta=elt('div','contract-meta');
   meta.append(elt('span','label-soft',sourceLabel(x)));
   meta.append(elt('span','',STATES[x.state]|| (x.state==='UN'?'Location unspecified':x.state||'Location unspecified')));
@@ -484,6 +488,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
 
  function makeTeaser(item){
   const card=elt('article','contract-card preview-teaser');
+  if(item.related)card.classList.add('preview-related');
   const behind=elt('div','preview-teaser-content');behind.setAttribute('aria-hidden','true');
   behind.append(elt('span','preview-match-badge',String(Math.round(Number(item.match_percent)||0))+'% estimated relevance'));
   behind.append(elt('div','preview-blur-line preview-blur-line-wide'));
@@ -492,7 +497,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   const overlay=elt('div','preview-teaser-overlay');
   overlay.append(elt('strong','',item.rank===1?'Top preview result · Members only':'Another matching result · Members only'));
   const location=STATES[item.state]||item.state||'Nationwide';
-  overlay.append(elt('p','',(item.suggested_trade||'Government contract')+' · '+location));
+  overlay.append(elt('p','',(item.related?'Related option · ':'')+(item.suggested_trade||'Government contract')+' · '+location));
   overlay.append(elt('p','','Match percentage and listing details are blurred until upgrade.'));
   const link=elt('a','','Unlock full search →');link.href='#pricing';overlay.append(link);
   card.append(overlay);return card;
@@ -525,16 +530,20 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
    note.textContent='ⓘ Nationwide records combine SAM.gov and imported state registries. Source coverage varies by state and the full SAM.gov archive was scanned on November 7, 2026; fresh updates are scheduled. Trade tags and match percentages are estimates, not bid eligibility or win probabilities. Verify every opportunity at the official site.';
   }else{banner.dataset.state='preview';banner.replaceChildren(elt('span','',membershipPending?'Checking account access…':statusError?'Account access unavailable: '+statusError:'Free nationwide preview · No account needed'));
    const a=elt('a','','Sign in for full search →');a.href='#account';banner.append(a);
-   note.textContent='ⓘ Free previews are genuine imported records. Estimated relevance percentages use available listing details and selected filters — they are not chances of winning a bid. Full search and saved bids require an active Sandbox membership. Verify every listing at the official source.';
+   note.textContent=relatedShown
+    ?'ⓘ No exact matches? Related contracts are shown and clearly labeled so you can discover opportunities outside your filters. Relevance % is only an estimate, not a chance of winning. Confirm every deadline and eligibility at the official source.'
+    :'ⓘ Free previews are real imported records. Match percentages estimate relevance, not chances of winning. Full search and saved bids require an active Sandbox membership. Verify deadlines and eligibility at the official source.';
   }
  }
- function render(){setNotice();result.replaceChildren();const found=records.filter(localMatches);
+ function render(){setNotice();result.replaceChildren();const found=plan?records.filter(localMatches):records;
   if(plan){const sorted=[...found].sort((a,b)=>(estimate(b)?.pct||0)-(estimate(a)?.pct||0)||String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));for(const x of sorted)result.append(makeCard(x));
    cnt.textContent=(totalCount!==null?totalCount+' indexed matches · ':'')+sorted.length+' shown'+(hasMore?' · Load more available':'');
   }else{
    for(const x of found)result.append(makeCard(x));
    for(const teaser of premiumTeasers)result.append(makeTeaser(teaser));
-   cnt.textContent=found.length+' free listings'+(premiumTeasers.length?' · '+premiumTeasers.length+' member-only previews':'');
+   cnt.textContent=exactMatchCount===0 && found.length
+    ?'No exact matches · '+found.length+' related contracts to explore'
+    :found.length+' free listings'+(premiumTeasers.length?' · '+premiumTeasers.length+' member-only previews':'');
   }
   if(!found.length&&(plan||!premiumTeasers.length)){
    const message=loading?'Loading opportunities…':statusError?'The contract preview could not load. Please search again in a moment.':plan?'No results for these filters. Try another trade, state, or keyword.':'No current contracts match these filters. Try another trade, state, or keyword.';
@@ -543,17 +552,23 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   more.hidden=plan?!hasMore:!(found.length||premiumTeasers.length);
   more.textContent=plan?'Show More Contracts':'Unlock Full Contract Search';
   more.disabled=loading;
+  if(!loading && window.projectScoutShowFirstContract){
+    const first=result.querySelector('.contract-card:not(.preview-teaser)')||result.querySelector('.contract-card');
+    if(first){window.projectScoutShowFirstContract=false;requestAnimationFrame(()=>first.scrollIntoView({behavior:'smooth',block:'start'}));}
+  }
  }
  async function fetchPreview(){
-  const token=++queryId;loading=true;records=[];premiumTeasers=[];statusError='';render();
+  const token=++queryId;loading=true;records=[];premiumTeasers=[];exactMatchCount=0;relatedShown=false;statusError='';render();
   try{
    const params=new URLSearchParams({state:state.value,source:source.value,trade:trade.value,q:keyword.value.trim().slice(0,50),deadline:deadline.value});
-   const response=await fetch(BASE+'/functions/v1/project-scout-public-preview-v2?'+params.toString());
+   const response=await fetch(BASE+'/functions/v1/project-scout-public-preview-v3?'+params.toString());
    const data=await response.json().catch(()=>({}));
    if(!response.ok)throw new Error(data.error||'Preview unavailable');
    if(token!==queryId||plan)return;
    records=Array.isArray(data.opportunities)?data.opportunities:[];
    premiumTeasers=Array.isArray(data.teasers)?data.teasers:[];
+   exactMatchCount=Math.max(0,Number(data.matching_count)||0);
+   relatedShown=!!data.related_shown;
    previewFetched=true;statusError='';
   }catch(e){if(token===queryId)statusError=e?.message||'Preview unavailable';}
   finally{if(token===queryId){loading=false;render();}}
@@ -607,7 +622,10 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   document.title=({contracts:'Contracts',pricing:'Pricing',privacy:'Privacy Policy',terms:'Terms of Use',account:'My Account',home:'Government Contracts Without the Headache'}[page])+' | Project Scout';
   if(['about','how','contact','plans'].includes(route)){requestAnimationFrame(()=>{const e=document.getElementById(route);if(e)e.scrollIntoView();});}
   else window.scrollTo({top:0,behavior:'instant'});
-  if(page==='contracts')void refreshMembership();
+  if(page==='contracts'){
+   void refreshMembership();
+   if(window.projectScoutShowFirstContract)requestAnimationFrame(()=>document.querySelector('.list-title')?.scrollIntoView({block:'start',behavior:'smooth'}));
+  }
  }
  form.addEventListener('submit',e=>{e.preventDefault();if(plan)void fetchPaid(true);else void fetchPreview();document.querySelector('.list-title').scrollIntoView({behavior:'smooth',block:'start'});});
  more.addEventListener('click',()=>{if(plan&&hasMore&&!loading)void fetchPaid(false);else if(!plan)window.location.hash='#pricing';});
