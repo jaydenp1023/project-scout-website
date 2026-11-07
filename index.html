@@ -931,7 +931,9 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   document.getElementById('forgot-link').addEventListener('click',()=>{setMode('forgot');document.getElementById('forgot-email').value=document.getElementById('login-email').value;});
   document.getElementById('back-login').addEventListener('click',()=>setMode('login'));
   if(!window.supabase?.createClient){showMessage('Sign in is temporarily unavailable. Please refresh and try again.',true);return;}
-  client=window.supabase.createClient(PROJECT_URL,PUBLIC_KEY,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}});
+  // The default background refresh retries repeatedly after 429 errors on some mobile browsers.
+  // Refresh the session on explicit access through getSession() instead of maintaining a retry loop.
+  client=window.supabase.createClient(PROJECT_URL,PUBLIC_KEY,{auth:{autoRefreshToken:false,persistSession:true,detectSessionInUrl:true}});
   window.ProjectScoutClient=client;
 
   // Payments are created server-side. A signed Stripe webhook updates membership; never trust client-side success redirects.
@@ -1186,7 +1188,6 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
       window.projectScoutShowFirstContract=true;
       showMessage('✓ Preferences saved! Opening your contract opportunities now.',false,true);
       window.location.hash='#contracts';
-      if(window.location.hash==='#contracts')window.dispatchEvent(new Event('projectscout-profile-saved'));
     }catch(e){
       showMessage('Your business details were not saved: '+(e?.message||'Please try again.'),true);
     }finally{busy(form,false);}
