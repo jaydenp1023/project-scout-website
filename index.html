@@ -150,6 +150,47 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
 .scout-no-source{font-size:13px;color:#7c899a}
 @media(max-width:640px){.contract-card .scout-card-actions{justify-content:flex-start;width:100%}.scout-member-banner{line-height:1.5}.scout-saved-bar{align-items:flex-start;flex-direction:column}}
 </style>
+
+<!-- Mobile About-section layout correction; desktop styles remain unchanged. -->
+<style id="project-scout-about-mobile-fix">
+@media (max-width: 680px) {
+  #about .wrap.about-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+    width: calc(100% - 36px);
+    max-width: 100%;
+  }
+  #about .about-layout > div { min-width: 0; max-width: 100%; }
+  #about .about-layout h2 {
+    max-width: 18ch;
+    font-size: clamp(30px, 7.8vw, 38px);
+    line-height: 1.15;
+    letter-spacing: -0.035em;
+    overflow-wrap: normal;
+    word-break: normal;
+    margin-top: 12px;
+  }
+  #about .about-layout p {
+    max-width: 60ch;
+    font-size: 17px;
+    line-height: 1.65;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  #about .about-logo-card {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 400px;
+    margin-inline: auto;
+    padding: 14px;
+    border-radius: 22px;
+  }
+  #about .about-logo-card img { display: block; max-width: 100%; height: auto; }
+  #about .about-logo-caption { font-size: 13px; line-height: 1.5; }
+}
+</style>
 </head>
 <body>
 <header class="site-head"><div class="wrap head-inner">
