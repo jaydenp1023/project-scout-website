@@ -422,7 +422,15 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
  function suggestedTrade(x){if(x.suggested_trade)return x.suggested_trade;if(x.suggestedTrade)return x.suggestedTrade;const t=String(x.title||'').toLowerCase();if(/plumb|sewer|wastewater|water heater|piping/.test(t))return 'Plumbing';if(/hvac|air condition|ventilat|chiller|boiler/.test(t))return 'HVAC';if(/electric|generator|lighting|transformer/.test(t))return 'Electrical';if(/landscap|mow|tree trim|lawn/.test(t))return 'Landscaping';if(/roof/.test(t))return 'Roofing';if(/paving|roadway|highway|asphalt/.test(t))return 'Roadwork';if(/construct|renovat|remodel|concrete|demolition/.test(t))return 'Construction';if(/maintenan|repair|inspection/.test(t))return 'Maintenance';return 'General';}
  function estimate(x){
   const chosen=String(profile?.trade|| (trade.value==='all'?'':trade.value)||'').trim();
-  if(!chosen||chosen==='Other')return null;
+  if(!chosen||chosen==='Other'){
+    // Preliminary listing relevance, not a personalized match or win probability.
+    const due=x.due_date||x.due,hasTitle=!!x.title,hasAgency=!!x.agency;
+    let basic=44+(hasTitle?3:0)+(hasAgency?5:0)+(x.source_url?4:0)+(due?5:0)+(x.notice_type?3:0);
+    if(state.value!=='ALL'&&x.state===state.value)basic+=12;
+    if(source.value!=='all')basic+=3;
+    if(due){const days=(Date.parse(String(due).slice(0,10)+'T00:00:00Z')-Date.parse(localToday()+'T00:00:00Z'))/DAY;if(days>=0&&days<=30)basic+=7;}
+    return {pct:Math.max(20,Math.min(96,Math.round(basic))),reason:'Preliminary listing relevance; add your trade to personalize. Not a chance of winning.'};
+  }
   const itemTrade=suggestedTrade(x),pstate=shortState(profile?.state),city=String(profile?.city||'').toLowerCase();
   const reasons=[];let score=31,strong=false;
   if(itemTrade.toLowerCase()===chosen.toLowerCase()){score+=43;reasons.push('Trade match from listing title');strong=true;}
@@ -458,8 +466,11 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   if(x.agency)meta.append(elt('span','',x.agency));
   meta.append(elt('span','', 'Deadline: '+prettyDate(x.due_date)));
   body.append(meta);
-  if(plan){const r=estimate(x);if(r){const score=elt('span','scout-match',''+r.pct+'% estimated match');score.title=r.reason+' — relevance estimate, not likelihood of winning';score.setAttribute('aria-label',r.pct+' percent estimated relevance. '+r.reason);body.append(score);}
-  else body.append(elt('span','scout-match scout-match-unset','Set your primary trade in My Account to see match %'));
+  const relevance=plan?(estimate(x)?.pct??x.match_percent):(x.match_percent??estimate(x)?.pct);
+  if(Number.isFinite(Number(relevance))){
+    const score=elt('span','scout-match',Math.round(Number(relevance))+'% estimated relevance');
+    score.title=(plan?(estimate(x)?.reason||'Approximate record relevance'):'Based on selected search filters and record details')+' — NOT a chance of winning the contract';
+    body.append(score);
   }
   if(x.source_id)body.append(elt('div','contract-record-id','Reference: '+x.source_id));
   card.append(body);
@@ -474,7 +485,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
  function makeTeaser(item){
   const card=elt('article','contract-card preview-teaser');
   const behind=elt('div','preview-teaser-content');behind.setAttribute('aria-hidden','true');
-  behind.append(elt('span','preview-match-badge',item.selected_trade_match?'✓ Matches your chosen trade':'✓ Relevant to your search'));
+  behind.append(elt('span','preview-match-badge',String(Math.round(Number(item.match_percent)||0))+'% estimated relevance'));
   behind.append(elt('div','preview-blur-line preview-blur-line-wide'));
   behind.append(elt('div','preview-blur-line'));
   behind.append(elt('div','preview-blur-line preview-blur-line-short'));card.append(behind);
@@ -482,6 +493,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   overlay.append(elt('strong','',item.rank===1?'Top-ranked result · Members only':'Another matching result · Members only'));
   const location=STATES[item.state]||item.state||'Nationwide';
   overlay.append(elt('p','',(item.suggested_trade||'Government contract')+' · '+location));
+  overlay.append(elt('p','','Match percentage and listing details are blurred until upgrade.'));
   const link=elt('a','','Unlock full search →');link.href='#pricing';overlay.append(link);
   card.append(overlay);return card;
  }
@@ -513,7 +525,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
    note.textContent='ⓘ Nationwide records combine SAM.gov and imported state registries. Source coverage varies by state and the full SAM.gov archive was scanned on November 7, 2026; fresh updates are scheduled. Trade tags and match percentages are estimates, not bid eligibility or win probabilities. Verify every opportunity at the official site.';
   }else{banner.dataset.state='preview';banner.replaceChildren(elt('span','',membershipPending?'Checking account access…':statusError?'Account access unavailable: '+statusError:'Free nationwide preview · No account needed'));
    const a=elt('a','','Sign in for full search →');a.href='#account';banner.append(a);
-   note.textContent='ⓘ Public sample from imported federal and state records. The full indexed search and saved bids require an active Sandbox membership. Verify deadlines and eligibility at the official source.';
+   note.textContent='ⓘ Free previews are genuine imported records. Estimated relevance percentages use available listing details and selected filters — they are not chances of winning a bid. Full search and saved bids require an active Sandbox membership. Verify every listing at the official source.';
   }
  }
  function render(){setNotice();result.replaceChildren();const found=records.filter(localMatches);
