@@ -722,8 +722,59 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
    if(token===queryId){statusError=e?.message||'Search failed';locationStatus.textContent='⚠ '+statusError;}
   }finally{if(token===queryId){loading=false;render();}}
  }
- function queryPaid(client,start){const today=localToday();let q=client.from('opportunities').select('id,source,source_id,title,state,city,agency,description,status,due_date,source_url,notice_type,naics_code,posted_date,last_verified_at,suggested_trade,related_notice_count,duplicate_of,is_placeholder',{count:'exact'});
-  if(state.value!=='ALL')q=q.eq('state',state.value);
+
+ async function zipLookupForMembers(zip){
+  const key='ZIP:'+zip;if(paidGeoCache.has(key))return paidGeoCache.get(key);
+  const r=await fetch('https://api.zippopotam.us/us/'+encodeURIComponent(zip),{
+   signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(3800):undefined
+  });
+  if(!r.ok)throw new Error(r.status===404?'ZIP code was not found. Please check all five digits.':'ZIP lookup is temporarily unavailable. Try again or search by state.');
+  const data=await r.json(),p=data.places?.[0];
+  if(!p)throw new Error('That ZIP code could not be located.');
+  const loc={zip,city:String(p['place name']||''),state:String(p['state abbreviation']||''),lat:Number(p.latitude),lon:Number(p.longitude)};
+  if(!STATES[loc.state]||!Number.isFinite(loc.lat)||!Number.isFinite(loc.lon))throw new Error('ZIP lookup did not return a valid U.S. state and location.');
+  paidGeoCache.set(key,loc);return loc;
+ }
+ function earthDistance(a,b){
+  const r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLon=(b.lon-a.lon)*r;
+  const m=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;
+  return Math.round(3958.8*2*Math.atan2(Math.sqrt(m),Math.sqrt(Math.max(0,1-m))));
+ }
+ async function cityLookupForMembers(st,city){
+  const key=st+':'+String(city).trim().toLowerCase();
+  if(paidGeoCache.has(key))return paidGeoCache.get(key);
+  if(!city||/nationwide|unspecified|various|multiple locations/i.test(city)){paidGeoCache.set(key,null);return null;}
+  try{
+   const r=await fetch('https://api.zippopotam.us/us/'+st.toLowerCase()+'/'+encodeURIComponent(String(city).toLowerCase()),{
+     signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(2500):undefined
+   });
+   if(!r.ok){paidGeoCache.set(key,null);return null;}
+   const j=await r.json(),pts=(j.places||[]).slice(0,80).map(x=>({lat:Number(x.latitude),lon:Number(x.longitude)})).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
+   if(!pts.length){paidGeoCache.set(key,null);return null;}
+   const val={lat:pts.reduce((a,x)=>a+x.lat,0)/pts.length,lon:pts.reduce((a,x)=>a+x.lon,0)/pts.length};
+   paidGeoCache.set(key,val);return val;
+  }catch{paidGeoCache.set(key,null);return null;}
+ }
+ async function decorateMemberZip(items,center){
+  if(!center)return items;
+  const allCities=[...new Set(items.map(x=>x.city).filter(Boolean))].slice(0,28);
+  const byCity=new Map();
+  for(let i=0;i<allCities.length;i+=6){
+   const part=allCities.slice(i,i+6);
+   await Promise.all(part.map(async city=>{
+    byCity.set(city,String(city).trim().toLowerCase()===center.city.toLowerCase()?center:await cityLookupForMembers(center.state,city));
+   }));
+  }
+  const radius=Number(searchRadius.value)||50;
+  return items.map(x=>{
+    const point=x.city?byCity.get(x.city):null;
+    const d=point?earthDistance(center,point):null;
+    return {...x,distance_miles:d,location_basis:point?'listed_city_estimate':'unspecified',nearby:d!==null&&d<=radius};
+  });
+ }
+ function queryPaid(client,start){const today=localToday();let q=client.from('opportunities').select('id,source,source_id,title,state,city,zip_code,agency,description,status,due_date,source_url,notice_type,naics_code,posted_date,last_verified_at,suggested_trade,related_notice_count,duplicate_of,is_placeholder',{count:'exact'});
+  const selectedState=paidGeo?.state||(state.value==='ALL'?'ALL':state.value);
+  if(selectedState!=='ALL')q=q.eq('state',selectedState);
   if(source.value==='federal')q=q.eq('source','sam_gov');else if(source.value==='state')q=q.neq('source','sam_gov');
   if(trade.value!=='all')q=q.eq('suggested_trade',trade.value);
   const search=keyword.value.trim().replace(/[%,()]/g,' ').replace(/\s+/g,' ').slice(0,80);
@@ -736,23 +787,44 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   if(savedOnly.checked){const ids=[...saved].slice(0,800);q=ids.length?q.in('id',ids):q.eq('id',-1);}
   return q.order('due_date',{ascending:true,nullsFirst:false}).order('id',{ascending:false}).range(start,start+PAGE-1);
  }
- async function fetchPaid(reset=true){if(!plan)return fetchPreview();const client=window.ProjectScoutClient;if(!client)return;
-  const token=++queryId;const start=reset?0:offset;
-  if(reset){offset=0;records=[];totalCount=null;hasMore=false;}
-  loading=true;render();
-  try{const {data,error,count}=await queryPaid(client,start);if(error)throw error;if(token!==queryId||!plan)return;
-   const items=(data||[]);records=reset?items:records.concat(items);offset=start+items.length;totalCount=count;hasMore=items.length===PAGE&&(count===null||offset<count);statusError='';}
-  catch(e){if(token===queryId){statusError=e.message||'Search failed';banner.textContent='Search failed: '+statusError;}}
-  finally{if(token===queryId){loading=false;render();}}
+ async function fetchPaid(reset=true){
+  if(!plan)return fetchPreview();
+  const client=window.ProjectScoutClient;if(!client)return;
+  const token=++queryId,start=reset?0:offset;
+  if(reset){offset=0;records=[];totalCount=null;hasMore=false;paidGeo=null;}
+  loading=true;statusError='';locationStatus.textContent='';render();
+  try{
+   const zip=searchZip.value.trim();
+   if(zip){
+    if(!/^\d{5}$/.test(zip))throw new Error('ZIP must be a five-digit number.');
+    const loc=await zipLookupForMembers(zip);
+    if(token!==queryId||!plan)return;
+    if(state.value!=='ALL'&&state.value!==loc.state)throw new Error('ZIP '+zip+' belongs to '+(STATES[loc.state]||loc.state)+'. Please choose the matching state or remove the ZIP.');
+    paidGeo=loc;
+   }
+   const {data,error,count}=await queryPaid(client,start);
+   if(error)throw error;
+   if(token!==queryId||!plan)return;
+   const items=paidGeo?await decorateMemberZip(data||[],paidGeo):(data||[]);
+   if(token!==queryId||!plan)return;
+   records=reset?items:records.concat(items);
+   offset=start+items.length;totalCount=count;
+   hasMore=items.length===PAGE&&(count===null||offset<count);
+   statusError='';
+   if(paidGeo)locationStatus.textContent='⌖ ZIP '+paidGeo.zip+' · '+paidGeo.city+', '+paidGeo.state+' · nearest listed cities first on this page (within ~'+searchRadius.value+' miles highlighted; worksite address must be verified).';
+   else if(state.value!=='ALL')locationStatus.textContent='Only showing '+STATES[state.value]+' records.';
+  }catch(e){
+   if(token===queryId){statusError=e?.message||'Search failed';locationStatus.textContent='⚠ '+statusError;}
+  }finally{if(token===queryId){loading=false;render();}}
  }
  async function refreshMembership(){const req=++queryId;const client=window.ProjectScoutClient;membershipPending=true;statusError='';plan=null;records=[];render();
   if(!client){membershipPending=false;return fetchPreview();}
-  try{const {data:auth,error:authError}=await client.auth.getUser();if(req!==queryId)return;
-   if(authError||!auth?.user){plan=null;userId=null;profile=null;saved=new Set();savedOnly.checked=false;membershipPending=false;return fetchPreview();}
-   userId=auth.user.id;
+  try{const {data:auth,error:authError}=await client.auth.getSession();if(req!==queryId)return;
+   if(authError||!auth?.session?.user){plan=null;userId=null;profile=null;saved=new Set();savedOnly.checked=false;membershipPending=false;return fetchPreview();}
+   userId=auth.session.user.id;
    const [sub,pr,sv]=await Promise.all([
      client.from('billing_subscriptions').select('plan_code,status,current_period_end').eq('user_id',userId).limit(30),
-     client.from('contractor_profiles').select('trade,city,state').eq('user_id',userId).maybeSingle(),
+     client.from('contractor_profiles').select('trade,city,state,zip_code').eq('user_id',userId).maybeSingle(),
      client.from('saved_opportunities').select('opportunity_id').eq('user_id',userId).limit(800)
    ]);
    if(req!==queryId)return;
