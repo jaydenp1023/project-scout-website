@@ -490,7 +490,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   behind.append(elt('div','preview-blur-line'));
   behind.append(elt('div','preview-blur-line preview-blur-line-short'));card.append(behind);
   const overlay=elt('div','preview-teaser-overlay');
-  overlay.append(elt('strong','',item.rank===1?'Top-ranked result · Members only':'Another matching result · Members only'));
+  overlay.append(elt('strong','',item.rank===1?'Top preview result · Members only':'Another matching result · Members only'));
   const location=STATES[item.state]||item.state||'Nationwide';
   overlay.append(elt('p','',(item.suggested_trade||'Government contract')+' · '+location));
   overlay.append(elt('p','','Match percentage and listing details are blurred until upgrade.'));
@@ -634,7 +634,10 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   const forms={login:document.getElementById('auth-form-login'),signup:document.getElementById('auth-form-signup'),forgot:document.getElementById('auth-form-forgot'),newpassword:document.getElementById('auth-form-newpassword')};
   let client=null, currentUser=null, recoveryMode=false, activeMode='login', verificationPendingEmail='';
   const baseUrl=window.location.origin+window.location.pathname;
-  const verifyReturnUrl=baseUrl+'?signup=confirmed';
+  // The existing verified Site URL is sufficient, and avoids an extra redirect allow-list entry.
+  const verifyReturnUrl=baseUrl;
+  const signupRedirect=(new URLSearchParams(window.location.hash.replace(/^#/, '')).get('type')==='signup') ||
+    new URLSearchParams(window.location.search).get('signup')==='confirmed';
   const verifyHelp=document.getElementById('verification-help');
   function showMessage(message,isError=false,isSuccess=false){status.hidden=false;status.textContent=message;status.dataset.type=isError?'error':isSuccess?'success':'info';}
   function clearMessage(){status.hidden=true;status.textContent='';}
@@ -876,7 +879,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
       }else return;
       if(event==='PASSWORD_RECOVERY'){recoveryMode=true;window.location.hash='#account';}
       updateView();
-      if(currentUser&&!recoveryMode&&new URLSearchParams(location.search).get('signup')==='confirmed'&&currentUser.email_confirmed_at){
+      if(currentUser&&!recoveryMode&&signupRedirect&&currentUser.email_confirmed_at){
         showMessage('✓ Email verified successfully! Welcome to Project Scout. Your account is ready.',false,true);
         window.location.hash='#account';
       }
@@ -892,12 +895,12 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
     updateView();
     window.dispatchEvent(new Event('projectscout-auth-changed'));
     if(currentUser&&!recoveryMode){
-      if(new URLSearchParams(location.search).get('signup')==='confirmed'&&currentUser.email_confirmed_at){
+      if(signupRedirect&&currentUser.email_confirmed_at){
         showMessage('✓ Email verified successfully! Welcome to Project Scout. Your account is ready.',false,true);
         window.location.hash='#account';
       }
       void loadProfile().catch(()=>showMessage('Account active. Please refresh if your business details have not appeared.',true));
-    }else if(!currentUser&&new URLSearchParams(location.search).get('signup')==='confirmed'){
+    }else if(!currentUser&&signupRedirect){
       setMode('login');
       showMessage('Email link opened. Use your existing password to log in if this browser did not restore your session.');
       window.location.hash='#account';
