@@ -650,7 +650,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   const member=document.getElementById('account-member');
   const link=document.getElementById('account-nav-link');
   const forms={login:document.getElementById('auth-form-login'),signup:document.getElementById('auth-form-signup'),forgot:document.getElementById('auth-form-forgot'),newpassword:document.getElementById('auth-form-newpassword')};
-  let client=null, currentUser=null, recoveryMode=false, activeMode='login', verificationPendingEmail='';
+  let client=null, currentUser=null, recoveryMode=false, activeMode='login', verificationPendingEmail='',loadedProfileId='',loadingProfileId='',profileDirty=false;
   const baseUrl=window.location.origin+window.location.pathname;
   // The existing verified Site URL is sufficient, and avoids an extra redirect allow-list entry.
   const verifyReturnUrl=baseUrl;
@@ -662,7 +662,39 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   function busy(form,active){const b=form.querySelector('button[type="submit"]');if(b){b.disabled=active;b.setAttribute('aria-busy',String(active));}}
   function setMode(mode){activeMode=mode;clearMessage();if(mode!=='signup')verifyHelp.hidden=true;for(const [name,form] of Object.entries(forms))form.hidden=name!==mode;const tabLogin=document.getElementById('auth-tab-login'),tabSignup=document.getElementById('auth-tab-signup');tabLogin.setAttribute('aria-selected',String(mode==='login'));tabSignup.setAttribute('aria-selected',String(mode==='signup'));document.querySelector('.account-switch').hidden=(mode==='forgot'||mode==='newpassword');}
   function updateView(){guest.hidden=!!currentUser||recoveryMode;member.hidden=!currentUser||recoveryMode;forms.newpassword.hidden=!recoveryMode;link.textContent=currentUser?'My Account':'Sign In';if(!currentUser&&!recoveryMode)setMode(activeMode==='signup'?'signup':'login');}
-  async function loadProfile(){if(!client||!currentUser)return;refreshBilling();document.getElementById('member-email').textContent=currentUser.email||'Signed in';const {data,error}=await client.from('contractor_profiles').select('company_name,trade,city,state').eq('user_id',currentUser.id).maybeSingle();if(error){showMessage('We could not load your preferences: '+error.message,true);return;}document.getElementById('profile-company').value=data?.company_name||'';document.getElementById('profile-trade').value=data?.trade||'';document.getElementById('profile-city').value=data?.city||'';document.getElementById('profile-state').value=data?.state||'';}
+  const profileForm=document.getElementById('profile-form');
+  profileForm.addEventListener('input',()=>{profileDirty=true;});
+  profileForm.addEventListener('change',()=>{profileDirty=true;});
+  async function loadProfile(){
+    if(!client||!currentUser)return;
+    const id=currentUser.id;
+    document.getElementById('member-email').textContent=currentUser.email||'Signed in';
+    // Preserve a form the customer is currently editing; auth token refresh must not reset fields.
+    if(loadedProfileId===id||loadingProfileId===id||profileDirty)return;
+    loadingProfileId=id;
+    try{
+      const {data:auth,error:authError}=await client.auth.getSession();
+      if(authError||!auth?.session||auth.session.user?.id!==id){
+        showMessage('Your business details could not be loaded because this browser has no active login session. Please sign in again in the same browser.',true);
+        return;
+      }
+      const {data,error}=await client.from('contractor_profiles')
+        .select('company_name,trade,city,state').eq('user_id',id).maybeSingle();
+      if(error){
+        showMessage('You are signed in, but we could not load your saved business details: '+error.message+'. You can still enter your details and try saving.',true);
+        return;
+      }
+      if(currentUser?.id!==id||profileDirty)return;
+      document.getElementById('profile-company').value=data?.company_name||'';
+      document.getElementById('profile-trade').value=data?.trade||'';
+      document.getElementById('profile-city').value=data?.city||'';
+      document.getElementById('profile-state').value=data?.state||'';
+      loadedProfileId=id;
+      void refreshBilling();
+    }catch(err){
+      showMessage('Could not load your preferences. Your session is still open. Please retry or save your details: '+(err?.message||'Network error'),true);
+    }finally{if(loadingProfileId===id)loadingProfileId='';}
+  }
   const tabLogin=document.getElementById('auth-tab-login'),tabSignup=document.getElementById('auth-tab-signup');
   tabLogin.addEventListener('click',()=>setMode('login'));tabSignup.addEventListener('click',()=>setMode('signup'));
   document.getElementById('forgot-link').addEventListener('click',()=>{setMode('forgot');document.getElementById('forgot-email').value=document.getElementById('login-email').value;});
@@ -879,7 +911,50 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   });
   forms.forgot.addEventListener('submit',async event=>{event.preventDefault();busy(forms.forgot,true);clearMessage();try{const {error}=await client.auth.resetPasswordForEmail(document.getElementById('forgot-email').value.trim(),{redirectTo:baseUrl});if(error)throw error;showMessage('If that email has an account, you will receive a password reset link.');}catch(e){showMessage(e?.message||'Could not send the reset email.',true);}finally{busy(forms.forgot,false);}});
   forms.newpassword.addEventListener('submit',async event=>{event.preventDefault();busy(forms.newpassword,true);clearMessage();try{const {error}=await client.auth.updateUser({password:document.getElementById('recovery-password').value});if(error)throw error;recoveryMode=false;const {data}=await client.auth.getUser();currentUser=data.user;updateView();await loadProfile();showMessage('Your password has been updated.');window.location.hash='#account';}catch(e){showMessage(e?.message||'Could not update your password.',true);}finally{busy(forms.newpassword,false);}});
-  document.getElementById('profile-form').addEventListener('submit',async event=>{event.preventDefault();if(!currentUser)return;const form=event.currentTarget;busy(form,true);clearMessage();try{const payload={user_id:currentUser.id,company_name:document.getElementById('profile-company').value.trim(),trade:document.getElementById('profile-trade').value,city:document.getElementById('profile-city').value.trim(),state:document.getElementById('profile-state').value.trim(),updated_at:new Date().toISOString()};const {error}=await client.from('contractor_profiles').upsert(payload,{onConflict:'user_id'});if(error)throw error;showMessage('Business preferences saved.');window.dispatchEvent(new Event('projectscout-profile-saved'));}catch(e){showMessage(e?.message||'Could not save preferences.',true);}finally{busy(form,false);}});
+  profileForm.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!currentUser){
+      setMode('login');showMessage('Please sign in before saving your business preferences.',true);return;
+    }
+    const form=event.currentTarget;
+    busy(form,true);clearMessage();
+    try{
+      const {data:auth,error:authError}=await client.auth.getSession();
+      if(authError||!auth?.session?.user||auth.session.user.id!==currentUser.id)
+        throw new Error('Your login session is missing. Please log out, then sign in again on this browser before saving.');
+      const payload={
+        user_id:auth.session.user.id,
+        company_name:document.getElementById('profile-company').value.trim(),
+        trade:document.getElementById('profile-trade').value,
+        city:document.getElementById('profile-city').value.trim(),
+        state:document.getElementById('profile-state').value.trim(),
+        updated_at:new Date().toISOString()
+      };
+      const {data:saved,error}=await client.from('contractor_profiles')
+        .upsert(payload,{onConflict:'user_id'}).select('user_id,trade,state').single();
+      if(error)throw error;
+      if(!saved||saved.user_id!==payload.user_id)throw new Error('We could not confirm that your preferences were saved. Please try again.');
+      profileDirty=false;
+      loadedProfileId=payload.user_id;
+      window.dispatchEvent(new Event('projectscout-profile-saved'));
+      // Set the search filters using the newly saved business preferences.
+      const trade=document.getElementById('trade');
+      if(Array.from(trade.options).some(o=>o.value===payload.trade))trade.value=payload.trade;
+      else trade.value='all';
+      const state=document.getElementById('state');
+      const choice=Array.from(state.options).find(o=>o.value.toUpperCase()===payload.state.toUpperCase()||o.textContent.trim().toLowerCase()===payload.state.toLowerCase());
+      state.value=choice?choice.value:'ALL';
+      document.getElementById('search-text').value='';
+      document.getElementById('deadline').value='all';
+      document.getElementById('source').value='all';
+      window.projectScoutShowFirstContract=true;
+      showMessage('✓ Preferences saved! Opening your contract opportunities now.',false,true);
+      window.location.hash='#contracts';
+      if(window.location.hash==='#contracts')window.dispatchEvent(new Event('projectscout-profile-saved'));
+    }catch(e){
+      showMessage('Your business details were not saved: '+(e?.message||'Please try again.'),true);
+    }finally{busy(form,false);}
+  });
   document.getElementById('logout-button').addEventListener('click',async()=>{clearMessage();const {error}=await client.auth.signOut();if(error){showMessage(error.message,true);return;}currentUser=null;recoveryMode=false;updateView();showMessage('You have signed out.');window.location.hash='#account';});
   let authEventSerial=0;
   client.auth.onAuthStateChange((event,session)=>{
@@ -888,7 +963,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
     // Downstream listeners fetch membership/user data; doing that inside the auth callback can deadlock supabase-js.
     setTimeout(()=>{
       if(serial!==authEventSerial)return;
-      if(event==='SIGNED_OUT'){currentUser=null;recoveryMode=false;}
+      if(event==='SIGNED_OUT'){currentUser=null;recoveryMode=false;loadedProfileId='';loadingProfileId='';profileDirty=false;}
       else if(session?.user){currentUser=session.user;}
       else if(event==='INITIAL_SESSION'){
         // An older initial null session must not overwrite a freshly successful password sign-in.
