@@ -647,53 +647,80 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   try{const q=client.from('saved_opportunities');const response=already?await q.delete().eq('user_id',userId).eq('opportunity_id',id):await q.insert({user_id:userId,opportunity_id:id});if(response.error)throw response.error;if(already)saved.delete(id);else saved.add(id);render();}
   catch(e){banner.textContent='Unable to save listing: '+(e.message||'Try again');button.disabled=false;}
  }
- function setNotice(){savedControls.hidden=!plan;refresh.hidden=!plan;
-  if(plan){banner.dataset.state='paid';banner.textContent='✓ '+plan[0].toUpperCase()+plan.slice(1)+' Sandbox member · Nationwide contract search · Sources combined';
-   note.textContent='ⓘ Nationwide records combine SAM.gov and imported state registries. Source coverage varies by state and the full SAM.gov archive was scanned on November 7, 2026; fresh updates are scheduled. Trade tags and match percentages are estimates, not bid eligibility or win probabilities. Verify every opportunity at the official site.';
-  }else{banner.dataset.state='preview';banner.replaceChildren(elt('span','',membershipPending?'Checking account access…':statusError?'Account access unavailable: '+statusError:'Free nationwide preview · No account needed'));
-   const a=elt('a','','Sign in for full search →');a.href='#account';banner.append(a);
-   note.textContent=relatedShown
-    ?'ⓘ No exact matches? Related contracts are shown and clearly labeled so you can discover opportunities outside your filters. Relevance % is only an estimate, not a chance of winning. Confirm every deadline and eligibility at the official source.'
-    :'ⓘ Free previews are real imported records. Match percentages estimate relevance, not chances of winning. Full search and saved bids require an active Sandbox membership. Verify deadlines and eligibility at the official source.';
+ function setNotice(){
+  savedControls.hidden=!plan;refresh.hidden=!plan;
+  const scope=searchZip.value.trim()?(zipArea?.state||paidGeo?.state||state.value):state.value;
+  if(plan){
+   banner.dataset.state='paid';banner.textContent='✓ '+plan[0].toUpperCase()+plan.slice(1)+' member · Full contract details and saved listings available';
+   note.textContent='ⓘ Scout Match Engine uses trade, state and available locations to estimate relevance (maximum 80%). Listed city might be the agency office rather than the worksite. Check the official source.';
+  }else{
+   banner.dataset.state='preview';banner.replaceChildren();
+   const headline=elt('span','',membershipPending?'Checking your account…':statusError?'Search issue: '+statusError:'FREE SAMPLE · Members can access the highest-ranked matching bids, full search and saved opportunities.');
+   banner.append(headline);
+   const a=elt('a','','See Members-Only Matches →');a.href='#pricing';banner.append(a);
+   note.textContent=searchZip.value.trim()
+     ?'ⓘ ZIP proximity uses available listed city/ZIP information, not verified worksite addresses. Listings outside your chosen radius are labeled; your state boundary remains fixed. Scores are relevance estimates, not win probabilities.'
+     :'ⓘ Listed city may be the issuing office rather than the worksite. Our relevance scores estimate fit, not award probability. Verify eligibility and the work location at the official notice.';
+   if(searchZip.value.trim()&&zipArea){
+     locationStatus.textContent='⌖ Searching '+(STATES[zipArea.state]||zipArea.state)+' around '+zipArea.zip+' ('+zipArea.city+') · within ~'+zipArea.radius_miles+' miles where location data allows';
+   }else if(!loading&&!statusError)locationStatus.textContent=scope==='ALL'?'':'Showing opportunities only in '+(STATES[scope]||scope)+'.';
   }
  }
- function render(){setNotice();result.replaceChildren();const found=plan?records.filter(localMatches):records;
-  if(plan){const sorted=[...found].sort((a,b)=>(estimate(b)?.pct||0)-(estimate(a)?.pct||0)||String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));for(const x of sorted)result.append(makeCard(x));
-   cnt.textContent=(totalCount!==null?totalCount+' indexed matches · ':'')+sorted.length+' shown'+(hasMore?' · Load more available':'');
+ function render(){
+  setNotice();result.replaceChildren();
+  const found=plan?records.filter(localMatches):records;
+  if(plan){
+   const ordered=[...found].sort((a,b)=>{
+    if(paidGeo){const nearby=Number(b.nearby)-Number(a.nearby);if(nearby)return nearby;}
+    return matchedScore(b)-matchedScore(a)||String(a.due_date||'9999').localeCompare(String(b.due_date||'9999'));
+   });
+   for(const x of ordered)result.append(makeCard(x));
+   cnt.textContent=(totalCount!==null?totalCount+' indexed matches · ':'')+ordered.length+' listed'+(hasMore?' · More available':'');
   }else{
    for(const x of found)result.append(makeCard(x));
    for(const teaser of premiumTeasers)result.append(makeTeaser(teaser));
-   cnt.textContent=exactMatchCount===0 && found.length
-    ?'No exact matches · '+found.length+' related contracts to explore'
-    :found.length+' free listings'+(premiumTeasers.length?' · '+premiumTeasers.length+' member-only previews':'');
+   if(!found.length&&premiumTeasers.length)cnt.textContent=premiumTeasers.length+' members-only preview';
+   else cnt.textContent=(exactMatchCount===0&&found.length?'No exact match · '+found.length+' other in-state listings':found.length+' free preview listings')+(premiumTeasers.length?' · '+premiumTeasers.length+' members-only':'');
   }
   if(!found.length&&(plan||!premiumTeasers.length)){
-   const message=loading?'Loading opportunities…':statusError?'The contract preview could not load. Please search again in a moment.':plan?'No results for these filters. Try another trade, state, or keyword.':'No current contracts match these filters. Try another trade, state, or keyword.';
+   const message=loading?'Searching public contracts…':statusError?'Search could not finish: '+statusError:
+    'No current listings match these filters in the selected state. Try a broader trade, radius or deadline.';
    result.append(elt('div','results-empty',message));
   }
   more.hidden=plan?!hasMore:!(found.length||premiumTeasers.length);
-  more.textContent=plan?'Show More Contracts':'Unlock Full Contract Search';
+  more.textContent=plan?'Show More Contracts':'Explore Membership Plans';
   more.disabled=loading;
-  if(!loading && window.projectScoutShowFirstContract){
+  if(!loading&&window.projectScoutShowFirstContract){
     const first=result.querySelector('.contract-card:not(.preview-teaser)')||result.querySelector('.contract-card');
     if(first){window.projectScoutShowFirstContract=false;requestAnimationFrame(()=>first.scrollIntoView({behavior:'smooth',block:'start'}));}
   }
  }
  async function fetchPreview(){
-  const token=++queryId;loading=true;records=[];premiumTeasers=[];exactMatchCount=0;relatedShown=false;statusError='';render();
+  const token=++queryId;
+  loading=true;records=[];premiumTeasers=[];exactMatchCount=0;relatedShown=false;
+  statusError='';zipArea=null;locationStatus.textContent='';
+  render();
   try{
-   const params=new URLSearchParams({state:state.value,source:source.value,trade:trade.value,q:keyword.value.trim().slice(0,50),deadline:deadline.value});
-   const response=await fetch(BASE+'/functions/v1/project-scout-public-preview-v3?'+params.toString());
+   const zip=searchZip.value.trim();
+   if(zip&&!/^\d{5}$/.test(zip))throw new Error('ZIP code must be five numbers, such as 36854.');
+   const params=new URLSearchParams({
+    state:state.value,source:source.value,trade:trade.value,
+    q:keyword.value.trim().slice(0,55),deadline:deadline.value,
+    zip,radius:searchRadius.value
+   });
+   const response=await fetch(BASE+'/functions/v1/project-scout-public-preview-v4?'+params);
    const data=await response.json().catch(()=>({}));
-   if(!response.ok)throw new Error(data.error||'Preview unavailable');
+   if(!response.ok)throw new Error(data.error||'Contracts are temporarily unavailable.');
    if(token!==queryId||plan)return;
    records=Array.isArray(data.opportunities)?data.opportunities:[];
    premiumTeasers=Array.isArray(data.teasers)?data.teasers:[];
    exactMatchCount=Math.max(0,Number(data.matching_count)||0);
    relatedShown=!!data.related_shown;
+   zipArea=data.zip_area||null;
    previewFetched=true;statusError='';
-  }catch(e){if(token===queryId)statusError=e?.message||'Preview unavailable';}
-  finally{if(token===queryId){loading=false;render();}}
+  }catch(e){
+   if(token===queryId){statusError=e?.message||'Search failed';locationStatus.textContent='⚠ '+statusError;}
+  }finally{if(token===queryId){loading=false;render();}}
  }
  function queryPaid(client,start){const today=localToday();let q=client.from('opportunities').select('id,source,source_id,title,state,city,agency,description,status,due_date,source_url,notice_type,naics_code,posted_date,last_verified_at,suggested_trade,related_notice_count,duplicate_of,is_placeholder',{count:'exact'});
   if(state.value!=='ALL')q=q.eq('state',state.value);
