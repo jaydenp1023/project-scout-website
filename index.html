@@ -327,6 +327,14 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
     <button class="button" type="submit">Create Account</button>
     <p class="account-helper">We'll ask you to confirm your email address. Public registration is still being configured, so test accounts currently require an approved email address.</p>
    </form>
+   <div class="verification-help" id="verification-help" role="status" aria-live="polite" hidden>
+    <strong>One last step: check your email</strong>
+    <p>We sent a Project Scout verification link to <b id="verify-email-label"></b>.</p>
+    <ol><li>Open your email inbox.</li><li>Find the message about confirming your Project Scout account. Check spam if needed.</li><li>Tap <b>Confirm email address</b>. You'll return here and see a success message.</li></ol>
+    <p>You already created your password. You won't need to make another one.</p>
+    <button id="resend-verification" type="button">Resend verification email</button>
+    <button id="verify-already" type="button">I verified — take me to Log In</button>
+   </div>
    <form id="auth-form-forgot" class="account-form" hidden>
     <h2>Reset your password</h2>
     <label>Your account email<input id="forgot-email" type="email" autocomplete="email" required></label>
@@ -611,12 +619,14 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   const member=document.getElementById('account-member');
   const link=document.getElementById('account-nav-link');
   const forms={login:document.getElementById('auth-form-login'),signup:document.getElementById('auth-form-signup'),forgot:document.getElementById('auth-form-forgot'),newpassword:document.getElementById('auth-form-newpassword')};
-  let client=null, currentUser=null, recoveryMode=false, activeMode='login';
+  let client=null, currentUser=null, recoveryMode=false, activeMode='login', verificationPendingEmail='';
   const baseUrl=window.location.origin+window.location.pathname;
+  const verifyReturnUrl=baseUrl+'?signup=confirmed';
+  const verifyHelp=document.getElementById('verification-help');
   function showMessage(message,isError=false){status.hidden=false;status.textContent=message;status.dataset.type=isError?'error':'info';}
   function clearMessage(){status.hidden=true;status.textContent='';}
   function busy(form,active){const b=form.querySelector('button[type="submit"]');if(b){b.disabled=active;b.setAttribute('aria-busy',String(active));}}
-  function setMode(mode){activeMode=mode;clearMessage();for(const [name,form] of Object.entries(forms))form.hidden=name!==mode;const tabLogin=document.getElementById('auth-tab-login'),tabSignup=document.getElementById('auth-tab-signup');tabLogin.setAttribute('aria-selected',String(mode==='login'));tabSignup.setAttribute('aria-selected',String(mode==='signup'));document.querySelector('.account-switch').hidden=(mode==='forgot'||mode==='newpassword');}
+  function setMode(mode){activeMode=mode;clearMessage();if(mode!=='signup')verifyHelp.hidden=true;for(const [name,form] of Object.entries(forms))form.hidden=name!==mode;const tabLogin=document.getElementById('auth-tab-login'),tabSignup=document.getElementById('auth-tab-signup');tabLogin.setAttribute('aria-selected',String(mode==='login'));tabSignup.setAttribute('aria-selected',String(mode==='signup'));document.querySelector('.account-switch').hidden=(mode==='forgot'||mode==='newpassword');}
   function updateView(){guest.hidden=!!currentUser||recoveryMode;member.hidden=!currentUser||recoveryMode;forms.newpassword.hidden=!recoveryMode;link.textContent=currentUser?'My Account':'Sign In';if(!currentUser&&!recoveryMode)setMode(activeMode==='signup'?'signup':'login');}
   async function loadProfile(){if(!client||!currentUser)return;refreshBilling();document.getElementById('member-email').textContent=currentUser.email||'Signed in';const {data,error}=await client.from('contractor_profiles').select('company_name,trade,city,state').eq('user_id',currentUser.id).maybeSingle();if(error){showMessage('We could not load your preferences: '+error.message,true);return;}document.getElementById('profile-company').value=data?.company_name||'';document.getElementById('profile-trade').value=data?.trade||'';document.getElementById('profile-city').value=data?.city||'';document.getElementById('profile-state').value=data?.state||'';}
   const tabLogin=document.getElementById('auth-tab-login'),tabSignup=document.getElementById('auth-tab-signup');
@@ -786,13 +796,44 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   } else if(new URLSearchParams(window.location.search).get('checkout')==='cancelled')payMessage('Checkout cancelled. No test purchase completed.');
 
   forms.login.addEventListener('submit',async event=>{event.preventDefault();busy(forms.login,true);clearMessage();const email=document.getElementById('login-email').value.trim(),password=document.getElementById('login-password').value;try{const {data,error}=await client.auth.signInWithPassword({email,password});if(error)throw error;currentUser=data.user;updateView();await loadProfile();window.location.hash='#account';}catch(e){showMessage(e?.message||'Could not sign in. Please try again.',true);}finally{busy(forms.login,false);}});
-  forms.signup.addEventListener('submit',async event=>{event.preventDefault();const email=document.getElementById('signup-email').value.trim(),password=document.getElementById('signup-password').value,confirm=document.getElementById('signup-confirm').value;if(password!==confirm){showMessage('The passwords do not match.',true);return;}busy(forms.signup,true);clearMessage();try{const {data,error}=await client.auth.signUp({email,password,options:{emailRedirectTo:baseUrl}});if(error)throw error;if(data.session){currentUser=data.user;updateView();await loadProfile();showMessage('Account created. You can now save your business preferences.');}else showMessage('If registration is permitted for that address, check your email for a confirmation link.');}catch(e){showMessage(e?.message||'Could not create account. Please try again.',true);}finally{busy(forms.signup,false);}});
+  forms.signup.addEventListener('submit',async event=>{
+   event.preventDefault();
+   const email=document.getElementById('signup-email').value.trim(),password=document.getElementById('signup-password').value,confirm=document.getElementById('signup-confirm').value;
+   if(password!==confirm){showMessage('The passwords do not match.',true);return;}
+   busy(forms.signup,true);clearMessage();
+   try{
+    const {data,error}=await client.auth.signUp({email,password,options:{emailRedirectTo:verifyReturnUrl}});
+    if(error)throw error;
+    if(data.session){currentUser=data.user;updateView();await loadProfile();showMessage('Your Project Scout account is ready. You are signed in.');}
+    else{
+     verificationPendingEmail=email;
+     document.getElementById('verify-email-label').textContent=email;
+     document.getElementById('login-email').value=email;
+     verifyHelp.hidden=false;
+     showMessage('Almost done! We sent you a Project Scout confirmation email. Follow the three steps below to finish.');
+    }
+   }catch(e){showMessage(e?.message||'Could not create account. Please try again.',true);}
+   finally{busy(forms.signup,false);}
+  });
+  document.getElementById('resend-verification').addEventListener('click',async event=>{
+   if(!verificationPendingEmail)return;
+   const button=event.currentTarget;button.disabled=true;
+   try{
+    const {error}=await client.auth.resend({type:'signup',email:verificationPendingEmail,options:{emailRedirectTo:verifyReturnUrl}});
+    if(error)throw error;
+    showMessage('Another Project Scout verification email is on its way. Check your inbox and spam folder.');
+   }catch(e){showMessage(e?.message||'Could not resend the email. Please try again shortly.',true);}
+   finally{button.disabled=false;}
+  });
+  document.getElementById('verify-already').addEventListener('click',()=>{
+   setMode('login');showMessage('Enter the password you created to log in. If you followed the confirmation link in this browser, you may already be signed in.');
+  });
   forms.forgot.addEventListener('submit',async event=>{event.preventDefault();busy(forms.forgot,true);clearMessage();try{const {error}=await client.auth.resetPasswordForEmail(document.getElementById('forgot-email').value.trim(),{redirectTo:baseUrl});if(error)throw error;showMessage('If that email has an account, you will receive a password reset link.');}catch(e){showMessage(e?.message||'Could not send the reset email.',true);}finally{busy(forms.forgot,false);}});
   forms.newpassword.addEventListener('submit',async event=>{event.preventDefault();busy(forms.newpassword,true);clearMessage();try{const {error}=await client.auth.updateUser({password:document.getElementById('recovery-password').value});if(error)throw error;recoveryMode=false;const {data}=await client.auth.getUser();currentUser=data.user;updateView();await loadProfile();showMessage('Your password has been updated.');window.location.hash='#account';}catch(e){showMessage(e?.message||'Could not update your password.',true);}finally{busy(forms.newpassword,false);}});
   document.getElementById('profile-form').addEventListener('submit',async event=>{event.preventDefault();if(!currentUser)return;const form=event.currentTarget;busy(form,true);clearMessage();try{const payload={user_id:currentUser.id,company_name:document.getElementById('profile-company').value.trim(),trade:document.getElementById('profile-trade').value,city:document.getElementById('profile-city').value.trim(),state:document.getElementById('profile-state').value.trim(),updated_at:new Date().toISOString()};const {error}=await client.from('contractor_profiles').upsert(payload,{onConflict:'user_id'});if(error)throw error;showMessage('Business preferences saved.');window.dispatchEvent(new Event('projectscout-profile-saved'));}catch(e){showMessage(e?.message||'Could not save preferences.',true);}finally{busy(form,false);}});
   document.getElementById('logout-button').addEventListener('click',async()=>{clearMessage();const {error}=await client.auth.signOut();if(error){showMessage(error.message,true);return;}currentUser=null;recoveryMode=false;updateView();showMessage('You have signed out.');window.location.hash='#account';});
-  client.auth.onAuthStateChange((event,session)=>{currentUser=session?.user||null;window.dispatchEvent(new Event('projectscout-auth-changed'));if(event==='PASSWORD_RECOVERY'){recoveryMode=true;window.location.hash='#account';}if(event==='SIGNED_OUT')recoveryMode=false;updateView();if(currentUser&&!recoveryMode)setTimeout(()=>{loadProfile();},0);});
-  client.auth.getSession().then(({data,error})=>{if(error){showMessage(error.message,true);return;}currentUser=data.session?.user||null;updateView();window.dispatchEvent(new Event('projectscout-auth-changed'));if(currentUser&&!recoveryMode)loadProfile();}).catch(()=>showMessage('Could not connect to account service.',true));
+  client.auth.onAuthStateChange((event,session)=>{currentUser=session?.user||null;window.dispatchEvent(new Event('projectscout-auth-changed'));if(event==='PASSWORD_RECOVERY'){recoveryMode=true;window.location.hash='#account';}if(event==='SIGNED_OUT')recoveryMode=false;updateView();if(currentUser&&!recoveryMode){if(new URLSearchParams(location.search).get('signup')==='confirmed'&&currentUser.email_confirmed_at){showMessage('✓ Email verified successfully! Welcome to Project Scout. Your account is ready.');window.location.hash='#account';}setTimeout(()=>{loadProfile();},0);}});
+  client.auth.getSession().then(({data,error})=>{if(error){showMessage(error.message,true);return;}currentUser=data.session?.user||null;updateView();window.dispatchEvent(new Event('projectscout-auth-changed'));if(currentUser&&!recoveryMode){if(new URLSearchParams(location.search).get('signup')==='confirmed'&&currentUser.email_confirmed_at){showMessage('✓ Email verified successfully! Welcome to Project Scout. Your account is ready.');window.location.hash='#account';}loadProfile();}}).catch(()=>showMessage('Could not connect to account service.',true));
 })();
 </script>
 <script>
