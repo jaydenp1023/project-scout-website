@@ -1194,11 +1194,15 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   document.getElementById('logout-button').addEventListener('click',async()=>{clearMessage();const {error}=await client.auth.signOut();if(error){showMessage(error.message,true);return;}currentUser=null;recoveryMode=false;updateView();showMessage('You have signed out.');window.location.hash='#account';});
   let authEventSerial=0;
   client.auth.onAuthStateChange((event,session)=>{
+    // Supabase emits SIGNED_IN on tab focus and TOKEN_REFRESHED periodically.
+    // Neither needs a new profile/billing query every time.
+    if(!['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT','PASSWORD_RECOVERY','USER_UPDATED'].includes(event))return;
     const serial=++authEventSerial;
     // IMPORTANT: do not query Supabase or dispatch events synchronously from this callback.
     // Downstream listeners fetch membership/user data; doing that inside the auth callback can deadlock supabase-js.
     setTimeout(()=>{
       if(serial!==authEventSerial)return;
+      const previousId=currentUser?.id||null;
       if(event==='SIGNED_OUT'){currentUser=null;recoveryMode=false;loadedProfileId='';loadingProfileId='';profileDirty=false;}
       else if(session?.user){currentUser=session.user;}
       else if(event==='INITIAL_SESSION'){
@@ -1207,6 +1211,8 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
         currentUser=null;
       }else return;
       if(event==='PASSWORD_RECOVERY'){recoveryMode=true;window.location.hash='#account';}
+      // Duplicate same-user focus events should not restart the entire account flow.
+      if(event==='SIGNED_IN'&&previousId&&previousId===currentUser?.id&&loadedProfileId===previousId)return;
       updateView();
       if(currentUser&&!recoveryMode&&signupRedirect&&currentUser.email_confirmed_at){
         showMessage('✓ Email verified successfully! Welcome to Project Scout. Your account is ready.',false,true);
@@ -1305,7 +1311,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
  const text=(tag,value)=>{const x=document.createElement(tag);x.textContent=String(value??'');return x;};
  const date=v=>v?new Date(v).toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric'}):'Not yet live';
  const num=v=>(Number(v)||0).toLocaleString('en-US');
- async function session(){const c=window.ProjectScoutClient;if(!c)return null;const r=await c.auth.getUser();if(r.error||r.data?.user?.id!==OWNER)return null;const s=await c.auth.getSession();return s.data?.session?.access_token||null;}
+ async function session(){const c=window.ProjectScoutClient;if(!c)return null;const s=await c.auth.getSession();if(s.error||s.data?.session?.user?.id!==OWNER)return null;return s.data.session.access_token||null;}
  async function api(action){const token=await session();if(!token)throw new Error('Administrator session missing. Please sign in again.');const r=await fetch(URL,{method:action?'POST':'GET',headers:{'Content-Type':'application/json','apikey':KEY,'Authorization':'Bearer '+token},...(action?{body:JSON.stringify({action})}:{})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Engine request failed');return d;}
  function render(data){
   const x=data.summary||{},m=data.maintenance||{},f=data.federal_full||{};
