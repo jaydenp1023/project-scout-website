@@ -808,7 +808,22 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
     showMessage('Stripe checkout returned successfully. Billing access is activated only after the signed Stripe webhook confirms the subscription. Refresh this page to check its status.');
   } else if(new URLSearchParams(window.location.search).get('checkout')==='cancelled')payMessage('Checkout cancelled. No test purchase completed.');
 
-  forms.login.addEventListener('submit',async event=>{event.preventDefault();busy(forms.login,true);clearMessage();const email=document.getElementById('login-email').value.trim(),password=document.getElementById('login-password').value;try{const {data,error}=await client.auth.signInWithPassword({email,password});if(error)throw error;currentUser=data.user;updateView();await loadProfile();window.location.hash='#account';}catch(e){showMessage(e?.message||'Could not sign in. Please try again.',true);}finally{busy(forms.login,false);}});
+  forms.login.addEventListener('submit',async event=>{
+    event.preventDefault();busy(forms.login,true);clearMessage();
+    const email=document.getElementById('login-email').value.trim(),password=document.getElementById('login-password').value;
+    try{
+      const {data,error}=await client.auth.signInWithPassword({email,password});
+      if(error)throw error;
+      if(!data?.session?.access_token||!data.user)throw new Error('We could not establish your login session. Please try again.');
+      currentUser=data.user;
+      updateView();
+      window.location.hash='#account';
+      showMessage('✓ Signed in successfully. You can enter your business details below.',false,true);
+      // Profile loading is independent from login: an error must never send the customer back to the login screen.
+      void loadProfile().catch(err=>showMessage('Signed in, but business details could not load: '+(err?.message||'Please try refreshing.'),true));
+    }catch(e){showMessage(e?.message||'Could not sign in. Please try again.',true);}
+    finally{busy(forms.login,false);}
+  });
   forms.signup.addEventListener('submit',async event=>{
    event.preventDefault();
    const email=document.getElementById('signup-email').value.trim(),password=document.getElementById('signup-password').value,confirm=document.getElementById('signup-confirm').value;
@@ -845,8 +860,49 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   forms.newpassword.addEventListener('submit',async event=>{event.preventDefault();busy(forms.newpassword,true);clearMessage();try{const {error}=await client.auth.updateUser({password:document.getElementById('recovery-password').value});if(error)throw error;recoveryMode=false;const {data}=await client.auth.getUser();currentUser=data.user;updateView();await loadProfile();showMessage('Your password has been updated.');window.location.hash='#account';}catch(e){showMessage(e?.message||'Could not update your password.',true);}finally{busy(forms.newpassword,false);}});
   document.getElementById('profile-form').addEventListener('submit',async event=>{event.preventDefault();if(!currentUser)return;const form=event.currentTarget;busy(form,true);clearMessage();try{const payload={user_id:currentUser.id,company_name:document.getElementById('profile-company').value.trim(),trade:document.getElementById('profile-trade').value,city:document.getElementById('profile-city').value.trim(),state:document.getElementById('profile-state').value.trim(),updated_at:new Date().toISOString()};const {error}=await client.from('contractor_profiles').upsert(payload,{onConflict:'user_id'});if(error)throw error;showMessage('Business preferences saved.');window.dispatchEvent(new Event('projectscout-profile-saved'));}catch(e){showMessage(e?.message||'Could not save preferences.',true);}finally{busy(form,false);}});
   document.getElementById('logout-button').addEventListener('click',async()=>{clearMessage();const {error}=await client.auth.signOut();if(error){showMessage(error.message,true);return;}currentUser=null;recoveryMode=false;updateView();showMessage('You have signed out.');window.location.hash='#account';});
-  client.auth.onAuthStateChange((event,session)=>{currentUser=session?.user||null;window.dispatchEvent(new Event('projectscout-auth-changed'));if(event==='PASSWORD_RECOVERY'){recoveryMode=true;window.location.hash='#account';}if(event==='SIGNED_OUT')recoveryMode=false;updateView();if(currentUser&&!recoveryMode){if(new URLSearchParams(location.search).get('signup')==='confirmed'&&currentUser.email_confirmed_at){showMessage('✓ Email verified successfully! Welcome to Project Scout. Your account is ready.',false,true);window.location.hash='#account';}setTimeout(()=>{loadProfile();},0);}});
-  client.auth.getSession().then(({data,error})=>{if(error){showMessage(error.message,true);return;}currentUser=data.session?.user||null;updateView();window.dispatchEvent(new Event('projectscout-auth-changed'));if(currentUser&&!recoveryMode){if(new URLSearchParams(location.search).get('signup')==='confirmed'&&currentUser.email_confirmed_at){showMessage('✓ Email verified successfully! Welcome to Project Scout. Your account is ready.',false,true);window.location.hash='#account';}loadProfile();}else if(!currentUser&&new URLSearchParams(location.search).get('signup')==='confirmed'){setMode('login');showMessage('Confirmation link opened. To access your account, log in using the password you already created.');window.location.hash='#account';}}).catch(()=>showMessage('Could not connect to account service.',true));
+  let authEventSerial=0;
+  client.auth.onAuthStateChange((event,session)=>{
+    const serial=++authEventSerial;
+    // IMPORTANT: do not query Supabase or dispatch events synchronously from this callback.
+    // Downstream listeners fetch membership/user data; doing that inside the auth callback can deadlock supabase-js.
+    setTimeout(()=>{
+      if(serial!==authEventSerial)return;
+      if(event==='SIGNED_OUT'){currentUser=null;recoveryMode=false;}
+      else if(session?.user){currentUser=session.user;}
+      else if(event==='INITIAL_SESSION'){
+        // An older initial null session must not overwrite a freshly successful password sign-in.
+        if(currentUser)return;
+        currentUser=null;
+      }else return;
+      if(event==='PASSWORD_RECOVERY'){recoveryMode=true;window.location.hash='#account';}
+      updateView();
+      if(currentUser&&!recoveryMode&&new URLSearchParams(location.search).get('signup')==='confirmed'&&currentUser.email_confirmed_at){
+        showMessage('✓ Email verified successfully! Welcome to Project Scout. Your account is ready.',false,true);
+        window.location.hash='#account';
+      }
+      window.dispatchEvent(new Event('projectscout-auth-changed'));
+      if(currentUser&&!recoveryMode)void loadProfile().catch(()=>showMessage('Account active. Please refresh if your business details have not appeared.',true));
+    },0);
+  });
+  client.auth.getSession().then(({data,error})=>{
+    if(error){if(!currentUser)showMessage('We could not restore your session. Please log in again.',true);return;}
+    // A late initial read must not kick an already signed-in customer back to the Log In form.
+    if(!data.session&&currentUser)return;
+    currentUser=data.session?.user||null;
+    updateView();
+    window.dispatchEvent(new Event('projectscout-auth-changed'));
+    if(currentUser&&!recoveryMode){
+      if(new URLSearchParams(location.search).get('signup')==='confirmed'&&currentUser.email_confirmed_at){
+        showMessage('✓ Email verified successfully! Welcome to Project Scout. Your account is ready.',false,true);
+        window.location.hash='#account';
+      }
+      void loadProfile().catch(()=>showMessage('Account active. Please refresh if your business details have not appeared.',true));
+    }else if(!currentUser&&new URLSearchParams(location.search).get('signup')==='confirmed'){
+      setMode('login');
+      showMessage('Email link opened. Use your existing password to log in if this browser did not restore your session.');
+      window.location.hash='#account';
+    }
+  }).catch(()=>{if(!currentUser)showMessage('Could not connect to account service. Please refresh and try again.',true);});
 })();
 </script>
 <script>
