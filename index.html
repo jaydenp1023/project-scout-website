@@ -500,6 +500,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
  menu.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));
  const form=document.getElementById('search-form'),state=document.getElementById('state'),source=document.getElementById('source');
  const trade=document.getElementById('trade'),keyword=document.getElementById('search-text'),deadline=document.getElementById('deadline');
+ const searchZip=document.getElementById('search-zip'),searchRadius=document.getElementById('search-radius'),locationStatus=document.getElementById('search-location-status');
  const result=document.getElementById('contract-list'),cnt=document.getElementById('result-count'),more=document.getElementById('load-more');
  const note=document.getElementById('data-note'),banner=document.getElementById('member-search-banner');
  const savedControls=document.getElementById('saved-controls'),savedOnly=document.getElementById('saved-only');
@@ -507,8 +508,8 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
  const BASE='https://hbsikbfsxqgeutskisnx.supabase.co';
  const STATES={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'Washington, DC',PR:'Puerto Rico',GU:'Guam',VI:'U.S. Virgin Islands',AS:'American Samoa',MP:'Northern Mariana Islands'};
  const DAY=86400000,PAGE=60,allowedPlans=new Set(['starter','pro','business']);
- let plan=null,userId=null,profile=null,saved=new Set(),records=[],premiumTeasers=[],exactMatchCount=0,relatedShown=false,offset=0,hasMore=false,totalCount=null;
- let queryId=0,membershipPending=false,loading=false,statusError='',previewFetched=false;
+ let plan=null,userId=null,profile=null,saved=new Set(),records=[],premiumTeasers=[],exactMatchCount=0,relatedShown=false,zipArea=null,offset=0,hasMore=false,totalCount=null;
+ let queryId=0,membershipPending=false,loading=false,statusError='',previewFetched=false,paidGeo=null,paidGeoCache=new Map();
  function elt(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!==undefined)x.textContent=text;return x;}
  function localToday(){return new Date().toISOString().slice(0,10);}
  function prettyDate(d){if(!d)return 'Not specified';const v=String(d).slice(0,10).split('-').map(Number);if(v.length!==3||v.some(x=>!x))return 'Not specified';return new Date(Date.UTC(v[0],v[1]-1,v[2])).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});}
@@ -552,49 +553,77 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   if(plan&&savedOnly.checked&&!saved.has(Number(x.id)))return false;
   return true;
  }
+ function matchStyle(n){return n>=70?'good':n>=55?'mid':'low';}
+ function matchedScore(x){const n=Number(plan?estimate(x)?.pct:x.match_percent??estimate(x)?.pct);return Number.isFinite(n)?Math.max(25,Math.min(80,Math.round(n))):52;}
  function makeCard(x){
-  const card=elt('article','contract-card'),body=elt('div','contract-body'),heading=elt('h3','',x.title||'Untitled opportunity');
-  if(x.related){card.classList.add('contract-related');body.append(elt('span','label-soft contract-related-label','Related result · '+(x.related_reason||'broader search')));}
-  body.append(heading);
+  const card=elt('article','contract-card contract-enhanced');
+  const body=elt('div','contract-body'),kicker=elt('div','contract-topline');
+  let typeLabel='FREE SAMPLE · PREVIEW';
+  if(plan)typeLabel='MEMBER ACCESS · FULL LISTING';
+  else if(x.related)typeLabel='RELATED · '+(x.state||'SAME STATE');
+  const tier=elt('span','contract-kicker '+(x.related?'related':plan?'member':'free'),typeLabel);
+  kicker.append(tier);
+  if(x.nearby===true)kicker.append(elt('span','contract-kicker free','NEAR YOUR ZIP'));
+  body.append(kicker);
+  const head=elt('div','contract-title-row'),score=matchedScore(x);
+  const scoreBlock=elt('div','contract-score-block '+matchStyle(score));
+  const num=elt('strong','',score+'%');
+  num.setAttribute('aria-label',score+' percent estimated listing relevance');
+  scoreBlock.append(num,elt('small','',score>=70?'STRONG RELEVANCE':score>=55?'POSSIBLE MATCH':'BROAD MATCH'));
+  const heading=elt('h3','',x.title||'Untitled opportunity');
+  head.append(heading,scoreBlock);body.append(head);
   const meta=elt('div','contract-meta');
   meta.append(elt('span','label-soft',sourceLabel(x)));
-  meta.append(elt('span','',STATES[x.state]|| (x.state==='UN'?'Location unspecified':x.state||'Location unspecified')));
   meta.append(elt('span','',suggestedTrade(x)+' · suggested trade'));
+  const location=x.city?String(x.city)+', '+(STATES[x.state]||x.state||''):(STATES[x.state]||x.state||'Location not supplied');
+  meta.append(elt('span','contract-location','⌖ Listed location: '+location));
+  if(x.zip_code)meta.append(elt('span','contract-proximity','Source ZIP '+x.zip_code));
+  if(typeof x.distance_miles==='number'&&Number.isFinite(x.distance_miles)){
+   meta.append(elt('span','contract-proximity',(x.location_basis==='listed_city_estimate'?'≈ ':'')+x.distance_miles+' miles from ZIP '+(searchZip.value||zipArea?.zip||'search')));
+  }else if(searchZip.value.trim()&&x.location_basis==='unspecified')meta.append(elt('span','contract-proximity','Exact ZIP distance unavailable'));
   if(x.agency)meta.append(elt('span','',x.agency));
-  meta.append(elt('span','', 'Deadline: '+prettyDate(x.due_date)));
+  meta.append(elt('span','','Deadline: '+prettyDate(x.due_date)));
   body.append(meta);
-  const relevance=plan?(estimate(x)?.pct??x.match_percent):(x.match_percent??estimate(x)?.pct);
-  if(Number.isFinite(Number(relevance))){
-    const score=elt('span','scout-match',Math.round(Number(relevance))+'% estimated relevance');
-    score.title=(plan?(estimate(x)?.reason||'Approximate record relevance'):'Based on selected search filters and record details')+' — NOT a chance of winning the contract';
-    body.append(score);
-  }
+  if(x.related)body.append(elt('p','contract-caution','Related in-state opportunity. '+(x.related_reason||'Check whether the trade and location fit.')));
+  else if(searchZip.value)body.append(elt('p','contract-caution','Distance is approximate when based on listed city. Verify the actual worksite on the official notice.'));
   if(x.source_id)body.append(elt('div','contract-record-id','Reference: '+x.source_id));
   card.append(body);
   const actions=elt('div','scout-card-actions');
-  if(plan){const button=elt('button','scout-save-button',saved.has(Number(x.id))?'★ Saved':'☆ Save');button.type='button';button.setAttribute('aria-pressed',String(saved.has(Number(x.id))));button.addEventListener('click',()=>toggleSaved(x,button));actions.append(button);}
-  if(plan&&Number(x.related_notice_count)>1){const btn=elt('button','scout-related-button','+'+(Number(x.related_notice_count)-1)+' related official notices');btn.type='button';btn.addEventListener('click',()=>void showRelated(x,card,btn));actions.append(btn);}
-  if(typeof x.source_url==='string'&&/^https:\/\//i.test(x.source_url)){const link=elt('a','','Official listing ↗');link.href=x.source_url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);}
-  else actions.append(elt('span','scout-no-source','Official link not available'));
-  card.append(actions);return card;
+  if(plan){
+   const button=elt('button','scout-save-button',saved.has(Number(x.id))?'★ Saved':'☆ Save');
+   button.type='button';button.setAttribute('aria-pressed',String(saved.has(Number(x.id))));
+   button.addEventListener('click',()=>toggleSaved(x,button));actions.append(button);
+   if(Number(x.related_notice_count)>1){
+    const btn=elt('button','scout-related-button','+'+(Number(x.related_notice_count)-1)+' related official notices');
+    btn.type='button';btn.addEventListener('click',()=>void showRelated(x,card,btn));actions.append(btn);
+   }
+  }
+  if(typeof x.source_url==='string'&&/^https:\/\//i.test(x.source_url)){
+   const link=elt('a','','Open Official Listing ↗');link.href=x.source_url;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);
+  }else actions.append(elt('span','scout-no-source','Official link not available'));
+  card.append(actions);
+  return card;
  }
-
+ 
  function makeTeaser(item){
   const card=elt('article','contract-card preview-teaser');
-  if(item.related)card.classList.add('preview-related');
   const behind=elt('div','preview-teaser-content');behind.setAttribute('aria-hidden','true');
-  behind.append(elt('span','preview-match-badge',String(Math.round(Number(item.match_percent)||0))+'% estimated relevance'));
+  behind.append(elt('span','preview-locked-score',Math.max(25,Math.min(80,Number(item.match_percent)||50))+'%'));
+  behind.append(elt('span','preview-match-badge','Estimated relevance'));
   behind.append(elt('div','preview-blur-line preview-blur-line-wide'));
   behind.append(elt('div','preview-blur-line'));
-  behind.append(elt('div','preview-blur-line preview-blur-line-short'));card.append(behind);
+  behind.append(elt('div','preview-blur-line preview-blur-line-short'));
+  card.append(behind);
   const overlay=elt('div','preview-teaser-overlay');
-  overlay.append(elt('strong','',item.rank===1?'Top preview result · Members only':'Another matching result · Members only'));
-  const location=STATES[item.state]||item.state||'Nationwide';
-  overlay.append(elt('p','',(item.related?'Related option · ':'')+(item.suggested_trade||'Government contract')+' · '+location));
-  overlay.append(elt('p','','Match percentage and listing details are blurred until upgrade.'));
-  const link=elt('a','','Unlock full search →');link.href='#pricing';overlay.append(link);
-  card.append(overlay);return card;
+  overlay.append(elt('span','locked-eyebrow',item.better_than_free?'✦ HIGHER-RELEVANCE MATCH':'✦ MEMBERS-ONLY OPPORTUNITY'));
+  overlay.append(elt('strong','',item.better_than_free?'See a better-matched contract':'More relevant contracts to explore'));
+  overlay.append(elt('p','',(item.suggested_trade||'Government contract')+' · '+(STATES[item.state]||item.state||'United States')));
+  overlay.append(elt('p','','Match % and full listing details are hidden for free visitors.'));
+  const link=elt('a','','View Membership Plans');link.href='#pricing';overlay.append(link);
+  card.append(overlay);
+  return card;
  }
+
  async function showRelated(item,card,button){
   const old=card.querySelector('.scout-related-list');if(old){old.remove();button.textContent='+'+(Number(item.related_notice_count)-1)+' related official notices';return;}
   const client=window.ProjectScoutClient;if(!client||!plan)return;
