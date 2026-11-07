@@ -871,7 +871,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   const member=document.getElementById('account-member');
   const link=document.getElementById('account-nav-link');
   const forms={login:document.getElementById('auth-form-login'),signup:document.getElementById('auth-form-signup'),forgot:document.getElementById('auth-form-forgot'),newpassword:document.getElementById('auth-form-newpassword')};
-  let client=null, currentUser=null, recoveryMode=false, activeMode='login', verificationPendingEmail='',loadedProfileId='',loadingProfileId='',profileDirty=false;
+  let client=null, currentUser=null, recoveryMode=false, activeMode='login', verificationPendingEmail='',loadedProfileId='',loadingProfileId='',profileDirty=false,loginCooldownUntil=0;
   const baseUrl=window.location.origin+window.location.pathname;
   // The existing verified Site URL is sufficient, and avoids an extra redirect allow-list entry.
   const verifyReturnUrl=baseUrl;
@@ -880,6 +880,15 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   const verifyHelp=document.getElementById('verification-help');
   function showMessage(message,isError=false,isSuccess=false){status.hidden=false;status.textContent=message;status.dataset.type=isError?'error':isSuccess?'success':'info';}
   function clearMessage(){status.hidden=true;status.textContent='';}
+  function handleRateLimit(error,action){
+    const msg=String(error?.message||'');
+    if(error?.status===429||/too many requests|rate limit/i.test(msg)){
+      loginCooldownUntil=Date.now()+90000;
+      showMessage('Too many '+action+' requests were sent. The login provider is temporarily limiting attempts. Please do not keep clicking; use free contract search in the meantime and try again after the limit resets.',true);
+      return true;
+    }
+    return false;
+  }
   function busy(form,active){const b=form.querySelector('button[type="submit"]');if(b){b.disabled=active;b.setAttribute('aria-busy',String(active));}}
   function setMode(mode){activeMode=mode;clearMessage();if(mode!=='signup')verifyHelp.hidden=true;for(const [name,form] of Object.entries(forms))form.hidden=name!==mode;const tabLogin=document.getElementById('auth-tab-login'),tabSignup=document.getElementById('auth-tab-signup');tabLogin.setAttribute('aria-selected',String(mode==='login'));tabSignup.setAttribute('aria-selected',String(mode==='signup'));document.querySelector('.account-switch').hidden=(mode==='forgot'||mode==='newpassword');}
   function updateView(){guest.hidden=!!currentUser||recoveryMode;member.hidden=!currentUser||recoveryMode;forms.newpassword.hidden=!recoveryMode;link.textContent=currentUser?'My Account':'Sign In';if(!currentUser&&!recoveryMode)setMode(activeMode==='signup'?'signup':'login');}
@@ -900,7 +909,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
         return;
       }
       const {data,error}=await client.from('contractor_profiles')
-        .select('company_name,trade,city,state').eq('user_id',id).maybeSingle();
+        .select('company_name,trade,city,state,zip_code').eq('user_id',id).maybeSingle();
       if(error){
         showMessage('You are signed in, but we could not load your saved business details: '+error.message+'. You can still enter your details and try saving.',true);
         return;
@@ -910,6 +919,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
       document.getElementById('profile-trade').value=data?.trade||'';
       document.getElementById('profile-city').value=data?.city||'';
       document.getElementById('profile-state').value=data?.state||'';
+      document.getElementById('profile-zip').value=data?.zip_code||'';
       loadedProfileId=id;
       void refreshBilling();
     }catch(err){
@@ -1083,7 +1093,9 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   } else if(new URLSearchParams(window.location.search).get('checkout')==='cancelled')payMessage('Checkout cancelled. No test purchase completed.');
 
   forms.login.addEventListener('submit',async event=>{
-    event.preventDefault();busy(forms.login,true);clearMessage();
+    event.preventDefault();
+    if(Date.now()<loginCooldownUntil){showMessage('Login requests are cooling down. Please try again later rather than repeatedly submitting the form.',true);return;}
+    busy(forms.login,true);clearMessage();
     const email=document.getElementById('login-email').value.trim(),password=document.getElementById('login-password').value;
     try{
       const {data,error}=await client.auth.signInWithPassword({email,password});
@@ -1095,7 +1107,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
       showMessage('✓ Signed in successfully. You can enter your business details below.',false,true);
       // Profile loading is independent from login: an error must never send the customer back to the login screen.
       void loadProfile().catch(err=>showMessage('Signed in, but business details could not load: '+(err?.message||'Please try refreshing.'),true));
-    }catch(e){showMessage(e?.message||'Could not sign in. Please try again.',true);}
+    }catch(e){if(!handleRateLimit(e,'sign-in'))showMessage(e?.message||'Could not sign in. Please try again.',true);}
     finally{busy(forms.login,false);}
   });
   forms.signup.addEventListener('submit',async event=>{
@@ -1114,7 +1126,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
      verifyHelp.hidden=false;
      showMessage('Almost done! We sent you a Project Scout confirmation email. Follow the three steps below to finish.');
     }
-   }catch(e){showMessage(e?.message||'Could not create account. Please try again.',true);}
+   }catch(e){if(!handleRateLimit(e,'signup'))showMessage(e?.message||'Could not create account. Please try again.',true);}
    finally{busy(forms.signup,false);}
   });
   document.getElementById('resend-verification').addEventListener('click',async event=>{
@@ -1124,7 +1136,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
     const {error}=await client.auth.resend({type:'signup',email:verificationPendingEmail,options:{emailRedirectTo:verifyReturnUrl}});
     if(error)throw error;
     showMessage('Another Project Scout verification email is on its way. Check your inbox and spam folder.');
-   }catch(e){showMessage(e?.message||'Could not resend the email. Please try again shortly.',true);}
+   }catch(e){if(!handleRateLimit(e,'verification email'))showMessage(e?.message||'Could not resend the email. Please try again shortly.',true);}
    finally{button.disabled=false;}
   });
   document.getElementById('verify-already').addEventListener('click',()=>{
@@ -1149,6 +1161,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
         trade:document.getElementById('profile-trade').value,
         city:document.getElementById('profile-city').value.trim(),
         state:document.getElementById('profile-state').value.trim(),
+        zip_code:document.getElementById('profile-zip').value.trim()||null,
         updated_at:new Date().toISOString()
       };
       const {data:saved,error}=await client.from('contractor_profiles')
@@ -1165,6 +1178,8 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
       const state=document.getElementById('state');
       const choice=Array.from(state.options).find(o=>o.value.toUpperCase()===payload.state.toUpperCase()||o.textContent.trim().toLowerCase()===payload.state.toLowerCase());
       state.value=choice?choice.value:'ALL';
+      document.getElementById('search-zip').value=payload.zip_code||'';
+      document.getElementById('search-radius').value='50';
       document.getElementById('search-text').value='';
       document.getElementById('deadline').value='all';
       document.getElementById('source').value='all';
@@ -1232,7 +1247,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
  if(!box||!picker||!button||!status)return;
  async function visibility(){
   const client=window.ProjectScoutClient;if(!client){box.hidden=true;return;}
-  try{const {data}=await client.auth.getUser();box.hidden=data?.user?.id!==OWNER_ID;}
+  try{const {data}=await client.auth.getSession();box.hidden=data?.session?.user?.id!==OWNER_ID;}
   catch{box.hidden=true;}
  }
  window.addEventListener('projectscout-auth-changed',()=>{void visibility();});
