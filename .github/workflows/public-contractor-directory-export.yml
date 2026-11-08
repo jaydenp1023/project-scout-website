@@ -1,0 +1,110 @@
+name: Export public contractor directory contacts (no email sending)
+on:
+  push:
+    paths:
+      - ".github/workflows/public-contractor-directory-export.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gather:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Collect permitted public business-directory contacts
+        shell: bash
+        run: |
+          python -m pip -q install requests beautifulsoup4
+          python - <<'PY'
+          import csv,re,requests,urllib.robotparser
+          from urllib.parse import urlparse
+          from bs4 import BeautifulSoup
+          from collections import Counter
+
+          url_map={
+            'NY':'https://www.ny-bca.com/member-directory/',
+            'GA':'https://coastalgeorgiahba.com/members/'
+          }
+          pattern=re.compile(r'\b(build|home|construct|contract|electric|plumb|roof|mech|hvac|paint|carpent|concrete|mason|install|restor|floor|tile|glass|glaz|insulat|drywall|wood|cabinet|exterior|landscap|excavat|pav|sitework|engineering|septic|gutters|metal|steel|demolit|waterproof|windows|millwork|foundation|grading|fence|stucco|refrigerat|architect|facility|maintenance|siding)\b',re.I)
+          # Allow word stems (e.g., construction, builder, flooring).
+          stems=('build','home','construct','contract','electric','plumb','roof','mech','hvac','paint','carpent','concret','mason','instal','restor','floor','tile','glass','glaz','insulat','drywall','wood','cabinet','exterior','landscap','excavat','pav','sitework','engineer','septic','gutter','metal','steel','demolit','waterproof','window','millwork','foundation','grading','fence','stucco','refrigerat','facility','maintenance','siding')
+          def kind(name):
+            n=name.lower()
+            for k,v in [('electri','Electrical'),('plumb','Plumbing'),('mech','Mechanical/HVAC'),('hvac','HVAC'),('roof','Roofing'),('concret','Concrete'),('mason','Masonry'),('demolit','Demolition'),('excavat','Excavation'),('floor','Flooring'),('tile','Tile'),('paint','Painting'),('glass','Glass'),('gutter','Gutters'),('landscap','Landscaping'),('drywall','Drywall'),('steel','Steel'),('construction','Construction'),('contract','Contracting'),('build','Builder')]:
+              if k in n:return v
+            return 'Construction / building services'
+          def email_norm(raw):
+            e=raw.strip().replace('mailto:','').split('?')[0].strip().lower()
+            if not re.fullmatch(r'[a-z0-9_.+%\-]+@[a-z0-9.\-]+\.[a-z]{2,}',e):return None
+            if any(x in e for x in ('example.com','noreply','no-reply')):return None
+            return e
+          def load(state,url):
+            o=urlparse(url);robots=f'{o.scheme}://{o.netloc}/robots.txt'
+            rp=urllib.robotparser.RobotFileParser();rp.set_url(robots);rp.read()
+            if not rp.can_fetch('ProjectScoutResearchBot/1.0',url):raise RuntimeError('Robots disallows public-directory collection')
+            r=requests.get(url,headers={'User-Agent':'Mozilla/5.0 (compatible; ProjectScoutResearchBot/1.0; public directory lookup)'},timeout=25)
+            r.raise_for_status()
+            print('FETCH',state,r.status_code,len(r.content),flush=True)
+            return BeautifulSoup(r.content,'html.parser')
+          rows=[]
+          try:
+            soup=load('NY',url_map['NY'])
+            members=soup.select('div.member_address')
+            print('NY MEMBERS',len(members),flush=True)
+            for details in members:
+              group=details.parent
+              h=group.find('h5') if group else None
+              company=h.get_text(' ',strip=True) if h else ''
+              if not company or not any(stem in company.lower() for stem in stems):continue
+              addr=details.find('p')
+              location=addr.get_text(' ',strip=True) if addr else ''
+              if not (re.search(r'\bNY\b',location,re.I) or re.search(r'\bNew York\b|\bBronx\b|\bBrooklyn\b|\bQueens\b|\bStaten Island\b|\bYonkers\b',location,re.I)):continue
+              emails=[email_norm(a.get('href','')) for a in details.select('a[href^="mailto:"]')]
+              emails=[e for e in emails if e]
+              if not emails:continue
+              phone=''
+              for a in details.select('a'):
+                raw=a.get_text(' ',strip=True)
+                if re.search(r'\d{3}[-.)\s]*\d{3}[-.\s]*\d{4}',raw):
+                  phone=raw;break
+              rows.append(['NY',company,kind(company),emails[0],phone,location,url_map['NY'],'Public association directory','Not contacted','No'])
+          except Exception as e:print('NY ERROR',type(e).__name__,str(e)[:200],flush=True)
+
+          try:
+            soup=load('GA',url_map['GA'])
+            members=soup.select('.uk-card-body')
+            print('GA CARDS',len(members),flush=True)
+            for card in members:
+              company=card.select_one('.cghba-company')
+              company=company.get_text(' ',strip=True) if company else ''
+              if not company or not any(stem in company.lower() for stem in stems):continue
+              addr=card.select_one('.cghba-address')
+              location=addr.get_text(' ',strip=True) if addr else ''
+              if not (re.search(r'\bGA\b',location) or re.search(r'\bGeorgia\b',location,re.I) or any(x in location.lower() for x in ('brunswick','saint simons','st. simons','darien','savannah','waverly','jesup'))):continue
+              emails=[email_norm(a.get('href','')) for a in card.select('.cghba-email a[href^="mailto:"]')]
+              emails=[e for e in emails if e]
+              if not emails:continue
+              ph=card.select_one('.cghba-phone')
+              phone=ph.get_text(' ',strip=True) if ph else ''
+              rows.append(['GA',company,kind(company),emails[0],phone,location,url_map['GA'],'Public association directory','Not contacted','No'])
+          except Exception as e:print('GA ERROR',type(e).__name__,str(e)[:200],flush=True)
+
+          # Avoid duplicate business inboxes.
+          unique={}
+          for row in rows:
+            unique.setdefault(row[3],row)
+          rows=list(unique.values())
+          rows.sort(key=lambda x:(x[0],x[1].lower()))
+          path='contractor_directory_additions.csv'
+          with open(path,'w',newline='',encoding='utf-8-sig') as f:
+            w=csv.writer(f)
+            w.writerow(['State','Business','Trade','Email','Phone','Location','Source URL','Source type','Contact status','Opt-out'])
+            w.writerows(rows)
+          print('RESULT_COUNT',len(rows),'BY_STATE',dict(Counter(r[0] for r in rows)),flush=True)
+          print('FILE_CREATED',path,flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contractor-directory-additions
+          path: contractor_directory_additions.csv
+          retention-days: 7
