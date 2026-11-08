@@ -1,0 +1,78 @@
+name: Project Scout live billing smoke test (no charges)
+on:
+  push:
+    paths:
+      - ".github/workflows/live-billing-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Test public billing routes without making purchases
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import urllib.request
+          import urllib.error
+          import sys
+          from html.parser import HTMLParser
+
+          BASE="https://hbsikbfsxqgeutskisnx.supabase.co/functions/v1/"
+          SITE="https://projectscouthq.com/"
+          IDS={
+            ("starter","month"):"price_1UZX71FxFAjEjlkudbQsLQ50",
+            ("starter","year"):"price_1UZX72FxFAjEjlkuvmYweFqD",
+            ("pro","month"):"price_1UZX75FxFAjEjlkurpOKgGIl",
+            ("pro","year"):"price_1UZX75FxFAjEjlku1oRteb9R",
+            ("business","month"):"price_1UZX75FxFAjEjlkuOxc0dyhR",
+            ("business","year"):"price_1UZX71FxFAjEjlkuEp6hbMpf"
+          }
+          def call(path, method="GET", payload=None, headers=None):
+            url=path if path.startswith("https://") else BASE+path
+            h={"User-Agent":"ProjectScoutReadOnlySmokeTest/1.0"}
+            if headers:h.update(headers)
+            data=None if payload is None else json.dumps(payload).encode()
+            if data is not None:h["Content-Type"]="application/json"
+            req=urllib.request.Request(url,data=data,headers=h,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=25) as res:
+                return res.status,res.read(200000).decode("utf-8","replace"),dict(res.headers)
+            except urllib.error.HTTPError as e:
+              return e.code,e.read(200000).decode("utf-8","replace"),dict(e.headers)
+          print("==== Non-charge live Stripe checks ====",flush=True)
+          try:
+            status,body,headers=call("live-stripe-plan-catalog")
+            print("Catalog HTTP",status,flush=True)
+            if status==200:
+              obj=json.loads(body)
+              prices=obj.get("prices",[])
+              found={(p.get("plan"),p.get("interval")):p for p in prices}
+              ids_ok=len(prices)==6 and all(found.get(k,{}).get("id")==v for k,v in IDS.items())
+              live_ok=all(p.get("mode")=="live" and p.get("active") and p.get("currency")=="usd" and p.get("recurring_interval")==p.get("interval") for p in prices)
+              print("Six expected price IDs:",ids_ok,"Live/active/interval:",live_ok,flush=True)
+              for key in IDS:print("  %s %s: %s cents"%(key[0],key[1],found.get(key,{}).get("amount_cents")),flush=True)
+              coupon=obj.get("intro_coupon",{})
+              print("Starter coupon (valid, amount, duration, mode):",coupon.get("valid"),coupon.get("amount_off_cents"),coupon.get("duration"),coupon.get("mode"),flush=True)
+              print("Checkout enabled setting:",obj.get("ready"),flush=True)
+            else:
+              try: print("Catalog error:",json.loads(body).get("error"),flush=True)
+              except: print("Catalog response:",body[:200],flush=True)
+            status,body,headers=call("live-create-stripe-checkout","POST",{"plan":"starter","interval":"month"}, {"Origin":SITE.rstrip("/")})
+            print("Checkout POST without login (must be rejected):",status,body[:150],flush=True)
+            status,body,headers=call("live-stripe-webhook","POST",{"type":"customer.subscription.created","livemode":True,"data":{"object":{"id":"sub_INVALID"}}},{"stripe-signature":"t=0,v1=fake"})
+            print("Webhook POST with invalid signature (must be rejected):",status,body[:150],flush=True)
+            status,body,headers=call("live-stripe-customer-portal","POST",{},{"Origin":SITE.rstrip("/")})
+            print("Customer portal without login (must be rejected):",status,body[:150],flush=True)
+            status,body,headers=call(SITE)
+            print("Website HTTP",status,"Live build tag:",'v11-live-stripe-staged-gated-2026-11-08' in body,flush=True)
+            print("==== Finished; no checkout session, subscription or charge was created ====",flush=True)
+          except Exception as exc:
+            print("Smoke test failed to connect:",type(exc).__name__,str(exc)[:200],flush=True)
+            raise
+          PY
