@@ -23,6 +23,14 @@ jobs:
             "tx-mech":"https://mcadallas.org/membership/",
             "tx-roof":"https://chamber.leandercc.org/member/category/Roofing/29014",
             "tx-aia":"https://aiasa.org/belong/allied-member-directory/",
+            "ny-bca":"https://www.ny-bca.com/member-directory/",
+            "ny-piping":"https://www.psicpiping.com/find-a-contractor/browse",
+            "ga-south":"https://hbasg.org/findapro.php?id=3",
+            "ga-south-2":"https://hbasg.org/findapro.php?id=124&index=A&start=0",
+            "tx-leander-alt":"https://leander.chamberspace.net/member/category/Roofing/29014",
+            "tx-aia-2":"https://www.aiasa.org/belong/allied-member-directory/",
+            "tx-houston":"https://embed-rech-01.dialog.cm/haa_abode/docs/haa_buyers_guide_2026",
+            "tx-rcat":"https://www.slateroofers.org/directory.html",
           }
           for key,url in urls.items():
             host=urlparse(url)
