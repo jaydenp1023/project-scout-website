@@ -1,0 +1,50 @@
+name: Investigate public contractor directory structure
+on:
+  push:
+    paths:
+      - ".github/workflows/contractor-source-check.yml"
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public listings, robots, and HTML structure
+        shell: bash
+        run: |
+          python -m pip -q install beautifulsoup4 requests
+          python - <<'PY'
+          import requests, urllib.robotparser
+          from bs4 import BeautifulSoup
+          from urllib.parse import urlparse
+          urls={
+            "ny":"https://nyeca.org/find-a-contractor-by-name/",
+            "ga":"https://coastalgeorgiahba.com/members/",
+            "tx-mech":"https://mcadallas.org/membership/",
+            "tx-roof":"https://chamber.leandercc.org/member/category/Roofing/29014",
+            "tx-aia":"https://aiasa.org/belong/allied-member-directory/",
+          }
+          for key,url in urls.items():
+            host=urlparse(url)
+            robots=host.scheme+"://"+host.netloc+"/robots.txt"
+            try:
+              rp=urllib.robotparser.RobotFileParser()
+              rp.set_url(robots);rp.read()
+              allowed=rp.can_fetch("ProjectScoutResearchBot/1.0",url)
+              print("SITE",key,"robots_allowed",allowed,"robots",robots,flush=True)
+              if not allowed:continue
+              r=requests.get(url,headers={"User-Agent":"Mozilla/5.0 (compatible; ProjectScoutResearchBot/1.0; one-time public-directory review)"},timeout=25)
+              print("FETCH",r.status_code,len(r.content),flush=True)
+              s=BeautifulSoup(r.text,"html.parser")
+              all_text=s.get_text(separator="\n",strip=True)
+              print("EMAIL_MATCHES",__import__("re").findall(r"[A-Za-z0-9_.+%-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",all_text)[:4],flush=True)
+              node=s.find(string=__import__("re").compile(r"[\w.+-]+@[\w.-]+\.[a-z]{2,}",__import__("re").I))
+              if node:
+                print("NODE",repr(str(node)[:150]),flush=True)
+                p=node.parent
+                for _ in range(5):
+                  if p is None:break
+                  print("PARENT",p.name,p.get("class"),"html",str(p)[:420].replace("\n"," "),flush=True)
+                  p=p.parent
+            except Exception as e: print("FAIL",key,type(e).__name__,str(e)[:190],flush=True)
+          PY
