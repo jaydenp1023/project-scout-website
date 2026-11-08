@@ -445,7 +445,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
     <label>Business name<input id="profile-company" maxlength="120" autocomplete="organization" placeholder="Company name"></label>
     <label>Primary trade<select id="profile-trade"><option value="">Choose a trade</option><option>Plumbing</option><option>HVAC</option><option>Electrical</option><option>Construction</option><option>Landscaping</option><option>Roofing</option><option>Roadwork</option><option>Maintenance</option><option>Other</option></select></label>
     <label>City<input id="profile-city" maxlength="100" autocomplete="address-level2" placeholder="City"></label>
-    <label>State<input id="profile-state" maxlength="60" autocomplete="address-level1" placeholder="State"></label>
+    <label>State<select id="profile-state" autocomplete="address-level1" required><option value="">Select your state</option></select></label>
     <label>Business ZIP code (optional)<input id="profile-zip" maxlength="5" pattern="[0-9]{5}" inputmode="numeric" autocomplete="postal-code" placeholder="e.g. 36854"></label>
     <button class="button" type="submit">Save My Preferences</button>
    </form>
@@ -902,6 +902,15 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   function setMode(mode){activeMode=mode;clearMessage();if(mode!=='signup')verifyHelp.hidden=true;for(const [name,form] of Object.entries(forms))form.hidden=name!==mode;const tabLogin=document.getElementById('auth-tab-login'),tabSignup=document.getElementById('auth-tab-signup');tabLogin.setAttribute('aria-selected',String(mode==='login'));tabSignup.setAttribute('aria-selected',String(mode==='signup'));document.querySelector('.account-switch').hidden=(mode==='forgot'||mode==='newpassword');}
   function updateView(){guest.hidden=!!currentUser||recoveryMode;member.hidden=!currentUser||recoveryMode;forms.newpassword.hidden=!recoveryMode;link.textContent=currentUser?'My Account':'Sign In';if(!currentUser&&!recoveryMode)setMode(activeMode==='signup'?'signup':'login');}
   const profileForm=document.getElementById('profile-form');
+  const profileStateSelect=document.getElementById('profile-state');
+  for(const option of document.getElementById('state').options){
+    if(option.value!=='ALL')profileStateSelect.append(option.cloneNode(true));
+  }
+  function normalizedProfileState(value){
+    const v=String(value||'').trim().toLowerCase();
+    const opt=[...profileStateSelect.options].find(o=>o.value.toLowerCase()===v||o.textContent.trim().toLowerCase()===v);
+    return opt?.value||'';
+  }
   profileForm.addEventListener('input',()=>{profileDirty=true;});
   profileForm.addEventListener('change',()=>{profileDirty=true;});
   async function loadProfile(){
@@ -927,7 +936,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
       document.getElementById('profile-company').value=data?.company_name||'';
       document.getElementById('profile-trade').value=data?.trade||'';
       document.getElementById('profile-city').value=data?.city||'';
-      document.getElementById('profile-state').value=data?.state||'';
+      document.getElementById('profile-state').value=normalizedProfileState(data?.state);
       document.getElementById('profile-zip').value=data?.zip_code||'';
       loadedProfileId=id;
       void refreshBilling();
@@ -1188,7 +1197,8 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
       else trade.value='all';
       const state=document.getElementById('state');
       const choice=Array.from(state.options).find(o=>o.value.toUpperCase()===payload.state.toUpperCase()||o.textContent.trim().toLowerCase()===payload.state.toLowerCase());
-      state.value=choice?choice.value:'ALL';
+      if(!choice)throw new Error('Choose a valid state to find local contracts.');
+      state.value=choice.value;
       document.getElementById('search-zip').value=payload.zip_code||'';
       document.getElementById('search-radius').value='50';
       document.getElementById('search-text').value='';
