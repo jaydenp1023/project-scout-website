@@ -585,7 +585,12 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   meta.append(elt('span','','Deadline: '+prettyDate(x.due_date)));
   body.append(meta);
   if(x.related)body.append(elt('p','contract-caution','Related in-state opportunity. '+(x.related_reason||'Check whether the trade and location fit.')));
-  else if(searchZip.value)body.append(elt('p','contract-caution','Distance is approximate when based on listed city. Verify the actual worksite on the official notice.'));
+  else if(searchZip.value){
+   let caution='Distances based on the listing city are approximate, not a verified jobsite.';
+   if(x.nearby===false&&typeof x.distance_miles==='number')caution='Outside your chosen radius. '+caution;
+   else if(x.distance_miles===null)caution='Worksite distance unknown: this listing has no usable local ZIP or city coordinates.';
+   body.append(elt('p','contract-caution',caution+' Verify the actual worksite on the official notice.'));
+  }
   if(x.source_id)body.append(elt('div','contract-record-id','Reference: '+x.source_id));
   card.append(body);
   const actions=elt('div','scout-card-actions');
@@ -616,7 +621,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   card.append(behind);
   const overlay=elt('div','preview-teaser-overlay');
   overlay.append(elt('span','locked-eyebrow',item.better_than_free?'✦ HIGHER-RELEVANCE MATCH':'✦ MEMBERS-ONLY OPPORTUNITY'));
-  overlay.append(elt('strong','',item.better_than_free?'See a better-matched contract':'More relevant contracts to explore'));
+  overlay.append(elt('strong','',item.better_than_free?'See a higher-relevance match':'Explore more ranked contract opportunities'));
   overlay.append(elt('p','',(item.suggested_trade||'Government contract')+' · '+(STATES[item.state]||item.state||'United States')));
   overlay.append(elt('p','','Match % and full listing details are hidden for free visitors.'));
   const link=elt('a','','View Membership Plans');link.href='#pricing';overlay.append(link);
@@ -662,7 +667,8 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
      ?'ⓘ ZIP proximity uses available listed city/ZIP information, not verified worksite addresses. Listings outside your chosen radius are labeled; your state boundary remains fixed. Scores are relevance estimates, not win probabilities.'
      :'ⓘ Listed city may be the issuing office rather than the worksite. Our relevance scores estimate fit, not award probability. Verify eligibility and the work location at the official notice.';
    if(searchZip.value.trim()&&zipArea){
-     locationStatus.textContent='⌖ Searching '+(STATES[zipArea.state]||zipArea.state)+' around '+zipArea.zip+' ('+zipArea.city+') · within ~'+zipArea.radius_miles+' miles where location data allows';
+     if(zipArea.nearby_shown===false)locationStatus.textContent='No nearby worksites were identified from available location data. Showing other '+(STATES[zipArea.state]||zipArea.state)+' opportunities, with location warnings.';
+     else locationStatus.textContent='⌖ Searching '+(STATES[zipArea.state]||zipArea.state)+' around '+zipArea.zip+' ('+zipArea.city+') · within ~'+zipArea.radius_miles+' miles where location data allows';
    }else if(!loading&&!statusError)locationStatus.textContent=scope==='ALL'?'':'Showing opportunities only in '+(STATES[scope]||scope)+'.';
   }
  }
@@ -717,6 +723,9 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
    exactMatchCount=Math.max(0,Number(data.matching_count)||0);
    relatedShown=!!data.related_shown;
    zipArea=data.zip_area||null;
+   if(zipArea&&zipArea.nearby_shown===false){
+     locationStatus.textContent='No listings with usable nearby location data were found in this sample. Showing other '+(STATES[zipArea.state]||zipArea.state)+' opportunities with location warnings.';
+   }
    previewFetched=true;statusError='';
   }catch(e){
    if(token===queryId){statusError=e?.message||'Search failed';locationStatus.textContent='⚠ '+statusError;}
