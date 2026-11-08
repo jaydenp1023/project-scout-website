@@ -19,7 +19,7 @@ Calculated on the server from fields that exist in the issuing notice:
 
 ## Source coverage status
 - Georgia: `ga_gpr` official registry importer returned 516 open events on 8 Nov 2026; daily authenticated cron job `project-scout-georgia-gpr-daily`. Open-status data still needs individual source verification.
-- Texas: `tx_esbd` historical seed had 389 records. Newly deployed `tx-esbd-incremental-sync` scans 14 official ESBD pages per invocation, storing a restartable page cursor in `scout_state_scan_cursors`. It is scheduled every five minutes as `project-scout-texas-incremental`; it has **not** completed its ~2,500-page first pass yet. It imports only notices with non-expired due dates and non-closed/cancelled/awarded statuses.
+- Texas: `tx_esbd` historical seed had 389 records. The reliable `tx-esbd-incremental-sync` now scans a **rolling 60-page recent-results window** in 14-page batches, checkpointing each page and retrying temporary HTML shells. It runs every five minutes as `project-scout-texas-incremental`, imports only non-expired, non-closed notices, and marks closed/cancelled existing notices as closed. **The ~2,500-page historical archive is not exhaustively scanned; do not claim total Texas registry coverage.** Source status is `recent_window`, not `complete`.
 - SAM.gov and New York feeds continue through their preexisting sync jobs.
 - Do **not** claim complete coverage of every state, every trade, or daily updates from any source that has only an old historical import.
 
