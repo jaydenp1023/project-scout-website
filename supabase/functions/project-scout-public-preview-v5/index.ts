@@ -212,21 +212,29 @@ Deno.serve(async request=>{
     String(a.due_date||"9999").localeCompare(String(b.due_date||"9999"));
   };
   const ranked=items.sort(sorter);
-  // Free preview displays a genuine, moderate-ranked result with a score of at most 80.
-  // Never change a real match score merely to entice an upgrade.
-  const moderate=ranked.filter(x=>x.match_percent<=80);
-  const free=(moderate.filter(x=>!x.related).length?moderate.filter(x=>!x.related):moderate).slice(0,1);
+  // Free visitors see one genuine moderate match in the same state, normally not
+  // the best one. The full 0-100 score remains untouched for all server results.
+  const eligible=ranked.filter(x=>x.match_percent<=80 && x.match_percent>=45);
+  const exactRelevant=eligible.filter(x=>!x.related &&
+    x.scope_category!=="Supplies / purchasing" &&
+    x.scope_category!=="Design / consulting");
+  const relevant=exactRelevant.length?exactRelevant:eligible.filter(x=>!x.related);
+  const pool=relevant.length?relevant:eligible;
+  const preferred=pool.find(x=>x.match_percent>=63 && x.match_percent<=74 &&
+    x.scope_category!=="Supplies / purchasing" &&
+    x.scope_category!=="Design / consulting") || pool[Math.min(2,Math.max(0,pool.length-1))];
+  const free=preferred?[preferred]:[];
   const freeIds=new Set(free.map(x=>x.id));
-  const premium=ranked.filter(x=>!freeIds.has(x.id)).slice(0,2);
-  // The blue overlay intentionally conceals the exact percent and identifiable fields.
+  const others=ranked.filter(x=>!freeIds.has(x.id));
+  const higher=others.filter(x=>free.length&&x.match_percent>free[0].match_percent);
+  const premium=(higher.length?higher:others).slice(0,2);
+  // The blue overlay intentionally conceals exact percentages and identifiers.
   const teasers=premium.map((x,i)=>({
    rank:i+1,
-   match_percent:x.match_percent,
-   engine_score:x.engine_score,
+   match_percent:x.match_percent,engine_score:x.engine_score,
    state:x.state,suggested_trade:x.suggested_trade,nearby:x.nearby,
-   related:x.related,
-   location_basis:x.location_basis,
-   better_than_free:!!free.length&&x.match_percent>Math.max(...free.map(f=>f.match_percent))
+   related:x.related,location_basis:x.location_basis,
+   better_than_free:!!free.length&&x.match_percent>free[0].match_percent
   }));
   const relatedShown=free.some(x=>x.related);
   const nearShown=geo?free.some(x=>x.nearby):null;
