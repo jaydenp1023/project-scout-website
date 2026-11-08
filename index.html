@@ -433,9 +433,9 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
       <span class="engine-score-cap">FREE PREVIEWS ≤80%</span>
     </div>
     <div class="match-engine-levels">
-      <div class="match-engine-level match-engine-level-good"><strong>85–100%</strong><span>Excellent estimated relevance</span></div>
-      <div class="match-engine-level match-engine-level-mid"><strong>65–84%</strong><span>Promising match</span></div>
-      <div class="match-engine-level match-engine-level-low"><strong>Below 65%</strong><span>Broader or incomplete match</span></div>
+      <div class="match-engine-level match-engine-level-good"><strong>75–100%</strong><span>Strong to excellent estimated relevance</span></div>
+      <div class="match-engine-level match-engine-level-mid"><strong>55–74%</strong><span>Possible fit — review details</span></div>
+      <div class="match-engine-level match-engine-level-low"><strong>Below 55%</strong><span>Broader or lower-confidence match</span></div>
     </div>
     <p class="engine-honesty">Scores estimate listing relevance from your filters and the available record. They do not predict the chance of winning. Always confirm eligibility, deadline and worksite with the issuing agency.</p>
   </section>
@@ -639,7 +639,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   if(plan&&savedOnly.checked&&!saved.has(Number(x.id)))return false;
   return true;
  }
- function matchStyle(n){return n>=85?'good':n>=65?'mid':'low';}
+ function matchStyle(n){return n>=75?'good':n>=55?'mid':'low';}
  function matchedScore(x){
    const raw=plan?(x.engine_score??x.match_percent??estimate(x)?.pct):(x.engine_score??x.match_percent??estimate(x)?.pct);
    const n=Number(raw);
@@ -666,7 +666,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   const num=elt('strong','',score+'%');
   num.setAttribute('aria-label',score+' percent estimated listing relevance, not chance of winning');
   dial.append(num);
-  scoreBlock.append(dial,elt('small','scout-score-caption',score>=85?'EXCELLENT FIT':score>=65?'PROMISING FIT':'BROAD MATCH'));
+  scoreBlock.append(dial,elt('small','scout-score-caption',score>=90?'EXCELLENT RELEVANCE':score>=75?'STRONG RELEVANCE':score>=55?'POSSIBLE MATCH':'BROAD MATCH'));
   const heading=elt('h3','',x.title||'Untitled opportunity');
   head.append(heading,scoreBlock);body.append(head);
   const meta=elt('div','contract-meta');
