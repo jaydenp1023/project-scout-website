@@ -71,8 +71,8 @@ jobs:
             print("Customer portal without login (must be rejected):",status,body[:150],flush=True)
             status,body,headers=call(SITE)
             print("Website HTTP",status,"Live build tag:",'v11-live-stripe-staged-gated-2026-11-08' in body,flush=True)
-            assert status==200, "Site must return HTTP 200"
-          print("==== Finished; no checkout session, subscription or charge was created ====",flush=True)
+              assert status==200, "Site must return HTTP 200"
+            print("==== Finished; no checkout session, subscription or charge was created ====",flush=True)
           except Exception as exc:
             print("Smoke test failed to connect:",type(exc).__name__,str(exc)[:200],flush=True)
             raise
