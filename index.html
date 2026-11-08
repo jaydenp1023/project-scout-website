@@ -761,6 +761,8 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   catch(e){banner.textContent='Unable to save listing: '+(e.message||'Try again');button.disabled=false;}
  }
  function setNotice(){
+  const engineCap=document.querySelector('.engine-score-cap');
+  if(engineCap)engineCap.textContent=plan?'FULL 0–100 SCORE':'FREE PREVIEWS ≤80%';
   savedControls.hidden=!plan;refresh.hidden=!plan;
   const scope=searchZip.value.trim()?(zipArea?.state||paidGeo?.state||state.value):state.value;
   if(plan){
