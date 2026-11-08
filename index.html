@@ -514,7 +514,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
  function localToday(){return new Date().toISOString().slice(0,10);}
  function prettyDate(d){if(!d)return 'Not specified';const v=String(d).slice(0,10).split('-').map(Number);if(v.length!==3||v.some(x=>!x))return 'Not specified';return new Date(Date.UTC(v[0],v[1]-1,v[2])).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});}
  function shortState(s){const x=String(s||'').trim();if(STATES[x.toUpperCase()])return x.toUpperCase();return Object.keys(STATES).find(k=>STATES[k].toLowerCase()===x.toLowerCase())||'';}
- function sourceLabel(x){const s=String(x.source||'');if(s==='sam_gov')return 'SAM.gov · Federal';if(s==='ny_nyscr')return 'New York State Contract Reporter';if(s==='tx_esbd')return 'Texas ESBD';if(s.startsWith('state_registry_'))return (STATES[s.slice(15).toUpperCase()]||'State')+' procurement registry';return s||'Public registry';}
+ function sourceLabel(x){const s=String(x.source||'');if(s==='sam_gov')return 'SAM.gov · Federal';if(s==='ny_nyscr')return 'New York State Contract Reporter';if(s==='tx_esbd')return 'Texas ESBD';if(s==='ga_gpr')return 'Georgia Procurement Registry';if(s.startsWith('state_registry_'))return (STATES[s.slice(15).toUpperCase()]||'State')+' procurement registry';return s||'Public registry';}
  function suggestedTrade(x){if(x.suggested_trade)return x.suggested_trade;if(x.suggestedTrade)return x.suggestedTrade;const t=String(x.title||'').toLowerCase();if(/plumb|sewer|wastewater|water heater|piping/.test(t))return 'Plumbing';if(/hvac|air condition|ventilat|chiller|boiler/.test(t))return 'HVAC';if(/electric|generator|lighting|transformer/.test(t))return 'Electrical';if(/landscap|mow|tree trim|lawn/.test(t))return 'Landscaping';if(/roof/.test(t))return 'Roofing';if(/paving|roadway|highway|asphalt/.test(t))return 'Roadwork';if(/construct|renovat|remodel|concrete|demolition/.test(t))return 'Construction';if(/maintenan|repair|inspection/.test(t))return 'Maintenance';return 'General';}
  function estimate(x){
   const chosen=String(profile?.trade|| (trade.value==='all'?'':trade.value)||'').trim();
@@ -568,13 +568,18 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   else if(x.related)typeLabel='RELATED · '+(x.state||'SAME STATE');
   const tier=elt('span','contract-kicker '+(x.related?'related':plan?'member':'free'),typeLabel);
   kicker.append(tier);
+  if(plan && x.engine_score>=85)kicker.append(elt('span','scout-featured-badge','✦ HIGH-RELEVANCE OPPORTUNITY'));
+  if(x.scope_category && x.scope_category!=='Scope needs review')kicker.append(elt('span','scout-scope-type',x.scope_category));
   if(x.nearby===true)kicker.append(elt('span','contract-kicker free','NEAR YOUR ZIP'));
   body.append(kicker);
   const head=elt('div','contract-title-row'),score=matchedScore(x);
   const scoreBlock=elt('div','contract-score-block '+matchStyle(score));
+  scoreBlock.style.setProperty('--score-angle',Math.round(score*3.6)+'deg');
+  const dial=elt('div','scout-score-dial');
   const num=elt('strong','',score+'%');
-  num.setAttribute('aria-label',score+' percent estimated listing relevance');
-  scoreBlock.append(num,elt('small','',score>=85?'EXCELLENT RELEVANCE':score>=65?'PROMISING MATCH':'BROAD MATCH'));
+  num.setAttribute('aria-label',score+' percent estimated listing relevance, not chance of winning');
+  dial.append(num);
+  scoreBlock.append(dial,elt('small','scout-score-caption',score>=85?'EXCELLENT FIT':score>=65?'PROMISING FIT':'BROAD MATCH'));
   const heading=elt('h3','',x.title||'Untitled opportunity');
   head.append(heading,scoreBlock);body.append(head);
   const meta=elt('div','contract-meta');
@@ -589,6 +594,17 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   if(x.agency)meta.append(elt('span','',x.agency));
   meta.append(elt('span','','Deadline: '+prettyDate(x.due_date)));
   body.append(meta);
+  const insight=elt('div','scout-match-insights');
+  const basis=elt('span','scout-insight', '✓ '+(x.suggested_trade||'Trade')+' category');
+  insight.append(basis);
+  if(x.evidence_quality){
+    const labels={detailed:'More details supplied',partial:'Some details supplied',limited:'Limited source details'};
+    insight.append(elt('span','scout-insight '+(x.evidence_quality==='limited'?'scout-insight-warning':''),labels[x.evidence_quality]||'Source information limited'));
+  }
+  if(x.scope_category==='Supplies / purchasing')insight.append(elt('span','scout-insight scout-insight-warning','Purchasing notice · check trade eligibility'));
+  if(x.scope_category==='Design / consulting')insight.append(elt('span','scout-insight scout-insight-warning','Design / consulting, not necessarily field work'));
+  if(x.city===null && !x.zip_code)insight.append(elt('span','scout-insight scout-insight-warning','Worksite location unconfirmed'));
+  body.append(insight);
   if(x.related)body.append(elt('p','contract-caution','Related in-state opportunity. '+(x.related_reason||'Check whether the trade and location fit.')));
   else if(searchZip.value){
    let caution='Distances based on the listing city are approximate, not a verified jobsite.';
@@ -665,7 +681,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
    note.textContent='ⓘ Member results use the full 0–100 relevance scale and are ranked across all matching listings before pagination. A score is not a chance of winning. Listed city might be the agency office rather than the worksite; verify at the original notice.';
   }else{
    banner.dataset.state='preview';banner.replaceChildren();
-   const headline=elt('span','',membershipPending?'Checking your account…':statusError?'Search issue: '+statusError:'FREE SAMPLE · Members can access the highest-ranked matching bids, full search and saved opportunities.');
+   const headline=elt('span','',membershipPending?'Checking your account…':statusError?'Search issue: '+statusError:'FREE PREVIEW · Your sample matches are genuine, with scores up to 80%. Members unlock the full 0–100 ranking and all available listings.');
    banner.append(headline);
    const a=elt('a','','See Members-Only Matches →');a.href='#pricing';banner.append(a);
    note.textContent=searchZip.value.trim()
@@ -683,7 +699,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
   if(plan){
    const ordered=[...found]; // The server ranks the complete result set before pagination.
    for(const x of ordered)result.append(makeCard(x));
-   cnt.textContent=(totalCount!==null?totalCount+' indexed matches · ':'')+ordered.length+' listed'+(hasMore?' · More available':'');
+   cnt.textContent=(totalCount!==null?totalCount+' matching listings · ':'')+ordered.length+' shown'+(hasMore?' · Load more ranked results':'');
   }else{
    for(const x of found)result.append(makeCard(x));
    for(const teaser of premiumTeasers)result.append(makeTeaser(teaser));
@@ -716,7 +732,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
     q:keyword.value.trim().slice(0,55),deadline:deadline.value,
     zip,radius:searchRadius.value
    });
-   const response=await fetch(BASE+'/functions/v1/project-scout-public-preview-v4?'+params);
+   const response=await fetch(BASE+'/functions/v1/project-scout-public-preview-v5?'+params);
    const data=await response.json().catch(()=>({}));
    if(!response.ok)throw new Error(data.error||'Contracts are temporarily unavailable.');
    if(token!==queryId||plan)return;
