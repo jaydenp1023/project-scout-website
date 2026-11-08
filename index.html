@@ -1175,7 +1175,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
       }
       confirmedPriceAmounts=amounts;
       catalogReady=catalog.ready===true;
-      for(const btn of document.querySelectorAll('.stripe-checkout'))btn.disabled=!catalogReady;
+      for(const btn of document.querySelectorAll('.stripe-checkout')){btn.disabled=!catalogReady;if(!catalogReady)btn.textContent='Checkout not available yet';}
       if(!catalogReady)payMessage('Live checkout is not enabled yet. We are finalizing payment verification; no charges can be made.',true);
       setBillingInterval(selectedBillingInterval);
     }catch(e){
