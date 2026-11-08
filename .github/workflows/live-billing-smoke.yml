@@ -60,11 +60,13 @@ jobs:
               coupon=obj.get("intro_coupon",{})
               print("Starter coupon (valid, amount, duration, mode):",coupon.get("valid"),coupon.get("amount_off_cents"),coupon.get("duration"),coupon.get("mode"),flush=True)
               print("Checkout enabled setting:",obj.get("ready"),flush=True)
+              assert obj.get("ready") is True, "Live checkout should be enabled and pricing verified"
             else:
               try: print("Catalog error:",json.loads(body).get("error"),flush=True)
               except: print("Catalog response:",body[:200],flush=True)
             status,body,headers=call("live-create-stripe-checkout","POST",{"plan":"starter","interval":"month"}, {"Origin":SITE.rstrip("/")})
             print("Checkout POST without login (must be rejected):",status,body[:150],flush=True)
+            assert status==401, "Unauthenticated checkout must return 401 after activation"
             status,body,headers=call("live-stripe-webhook","POST",{"type":"customer.subscription.created","livemode":True,"data":{"object":{"id":"sub_INVALID"}}},{"stripe-signature":"t=0,v1=fake"})
             print("Webhook POST with invalid signature (must be rejected):",status,body[:150],flush=True)
             assert status==400, "Invalid webhook signature must be rejected"
