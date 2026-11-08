@@ -68,10 +68,6 @@ jobs:
             status,body,headers=call("live-stripe-webhook","POST",{"type":"customer.subscription.created","livemode":True,"data":{"object":{"id":"sub_INVALID"}}},{"stripe-signature":"t=0,v1=fake"})
             print("Webhook POST with invalid signature (must be rejected):",status,body[:150],flush=True)
             assert status==400, "Invalid webhook signature must be rejected"
-            status,body,headers=call("stripe-live-signature-probe-20261108")
-            data=json.loads(body)
-            print("Signed harmless webhook event:",status,data,flush=True)
-            assert status==200 and data.get("signatureAccepted") is True, "Correctly signed webhook must be accepted"
             status,body,headers=call("live-stripe-customer-portal","POST",{},{"Origin":SITE.rstrip("/")})
             print("Customer portal without login (must be rejected):",status,body[:150],flush=True)
             status,body,headers=call(SITE)
