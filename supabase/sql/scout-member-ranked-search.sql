@@ -70,20 +70,20 @@ AS $function$
   - case when v.naics_code is null or length(trim(v.naics_code))<4 then 2 else 0 end
   -- Supply tenders and professional services should not score as outstanding trades work
   -- simply because the generated title category matches.
-  - case when v.title ~* '(chemicals?|purchas(e|ing)|suppl(y|ies)|equipment rental|training systems?|parts for|subscriptions?|bulk materials?)'
+  - case when v.title ~* '(chemicals?|hydrochloric|sulfuric|reagent|purchas(e|ing)|suppl(y|ies)|equipment rental|training systems?|parts for|subscriptions?|bulk materials?)'
         and v.title !~* '(install|construct|replacement|repair|maintenance|servic(e|es)|renovat)' then 17 else 0 end
   - case when v.title ~* '(design|engineer|consult|planning study|architect)' 
         and v.title !~* '(install|construct|replacement|repair|renovat)' then 9 else 0 end
-  + case when v.title ~* '(install|construct|replacement|repair|renovat|rehabilitat|upgrade|maintenance|improvement)' then 4 else 0 end
+  + case when v.title ~* '(install|construct|replacement|repair|renovat|rehabilitat|upgrade|maintenance|improvement|on.call|contractor task order|sewerage|labor contract)' then 4 else 0 end
  ))::integer as engine_score,
  case when v.description is not null and length(trim(v.description))>=80 and coalesce(v.city,'')<>'' then 'detailed'
       when (v.description is not null and length(trim(v.description))>=50) or coalesce(v.city,'')<>'' then 'partial'
       else 'limited' end as evidence_quality,
- case when v.title ~* '(chemicals?|purchas(e|ing)|suppl(y|ies)|equipment rental|training systems?|parts for|subscriptions?|bulk materials?)'
+ case when v.title ~* '(chemicals?|hydrochloric|sulfuric|reagent|purchas(e|ing)|suppl(y|ies)|equipment rental|training systems?|parts for|subscriptions?|bulk materials?)'
        and v.title !~* '(install|construct|replacement|repair|maintenance|servic(e|es)|renovat)' then 'Supplies / purchasing'
       when v.title ~* '(design|engineer|consult|planning study|architect)'
        and v.title !~* '(install|construct|replacement|repair|renovat)' then 'Design / consulting'
-      when v.title ~* '(install|construct|replacement|repair|renovat|rehabilitat|upgrade|maintenance|improvement)' then 'On-site trade work'
+      when v.title ~* '(install|construct|replacement|repair|renovat|rehabilitat|upgrade|maintenance|improvement|on.call|contractor task order|sewerage|labor contract)' then 'On-site trade work'
       else 'Scope needs review' end as scope_category
  from visible v
  )
