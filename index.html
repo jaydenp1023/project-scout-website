@@ -350,6 +350,25 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
 #contracts-view .scout-match-insights{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
 #contracts-view .scout-insight{display:inline-flex;align-items:center;background:#eef6f9;border:1px solid #dae8ee;color:#25546b;font-size:12px;font-weight:700;border-radius:9px;padding:8px 11px;line-height:1.35}
 #contracts-view .scout-insight-warning{background:#fff7e9;border-color:#f4dfb6;color:#83611a}
+
+/* Preliminary, evidence-conscious bid review shown only for visible contract records. */
+#contracts-view .scout-bid-guide{margin-top:16px;padding:15px 16px;background:#f4f9ff;border:1px solid #cfe0ef;border-radius:14px;color:#173957}
+#contracts-view .scout-bid-guide-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#contracts-view .scout-bid-guide-header strong{font-size:16px;color:#12365a}
+#contracts-view .scout-bid-guide-tag{font-size:10px;font-weight:850;letter-spacing:.04em;color:#315c7b;background:#e3effa;border-radius:20px;padding:5px 8px}
+#contracts-view .scout-bid-guide-explainer{font-size:13px;line-height:1.55;margin:8px 0 11px;overflow-wrap:anywhere}
+#contracts-view .scout-bid-guide-details{border-top:1px solid #d9e7f2;padding-top:10px}
+#contracts-view .scout-bid-guide-details summary{cursor:pointer;font-size:13px;font-weight:800;line-height:1.4;color:#164b7e}
+#contracts-view .scout-bid-guide-details summary:focus-visible{outline:3px solid #2476b7;outline-offset:3px;border-radius:3px}
+#contracts-view .scout-bid-guide-checklist{list-style:none;padding:2px 0 0;margin:10px 0;display:grid;gap:8px}
+#contracts-view .scout-bid-guide-check{padding:10px 12px;background:#fff;border:1px solid #dce8f3;border-radius:10px;display:grid;gap:3px}
+#contracts-view .scout-bid-guide-check strong{font-size:12px;color:#254c6c}
+#contracts-view .scout-bid-guide-check.positive{border-left:3px solid #2b9275}
+#contracts-view .scout-bid-guide-check.review{border-left:3px solid #c89b3c}
+#contracts-view .scout-bid-guide-check span{font-size:12px;line-height:1.5;color:#465e72}
+#contracts-view .scout-bid-guide-disclaimer{font-size:11px;color:#61768b;line-height:1.55;margin:8px 0 0}
+@media(max-width:430px){#contracts-view .scout-bid-guide{padding:12px}#contracts-view .scout-bid-guide-explainer{font-size:12px}}
+
 #contracts-view .contract-card .scout-card-actions{border-top:1px solid #e4edf3;padding-top:16px;margin-top:17px;width:100%}
 #contracts-view .contract-card .scout-card-actions a{border-radius:12px;background:#12396c;font-weight:800;box-shadow:0 4px 15px rgba(15,50,90,.12)}
 #contracts-view .preview-teaser{border-radius:21px;border:2px solid #a8d3bb;background:linear-gradient(145deg,#c3e9d2,#d5e9f8)}
@@ -648,6 +667,60 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
    // The server chooses and restricts the FREE preview; members receive the full 0–100 scale.
    return Math.max(0,Math.min(100,Math.round(n)));
  }
+ function makeBidGuide(x){
+  // A cautious, source-grounded review. Never treat the relevance score as legal or bid eligibility.
+  const section=elt('section','scout-bid-guide');
+  section.setAttribute('aria-label','Preliminary bid-readiness review');
+  const header=elt('div','scout-bid-guide-header');
+  header.append(elt('strong','','Before you bid'),elt('span','scout-bid-guide-tag','QUICK REVIEW'));
+  section.append(header);
+  const category=x.scope_category&&x.scope_category!=='Scope needs review'
+   ?String(x.scope_category):suggestedTrade(x)+' (suggested trade)';
+  const source=x.agency?'Agency: '+String(x.agency).slice(0,130)+'. ':'Source: '+sourceLabel(x)+'. ';
+  section.append(elt('p','scout-bid-guide-explainer',
+   'This notice is categorized as '+category+'. '+source+
+   'The category is a starting point, not a confirmed description of the work. Review the issuing agency’s full solicitation.'));
+  const details=elt('details','scout-bid-guide-details');
+  details.append(elt('summary','','Can I actually bid? Check these four things'));
+  const checks=elt('ul','scout-bid-guide-checklist');
+  function addCheck(label,note,kind){
+   const item=elt('li','scout-bid-guide-check '+(kind||'review'));
+   item.append(elt('strong','',label),elt('span','',note));
+   checks.append(item);
+  }
+  const chosen=String(profile?.trade||(trade.value!=='all'?trade.value:'')).trim();
+  const suggested=String(suggestedTrade(x));
+  if(chosen&&suggested!=='General'&&chosen.toLowerCase()===suggested.toLowerCase()){
+   addCheck('Trade: possible fit','The listing’s suggested trade matches '+chosen+'. Confirm the statement of work and your capabilities.','positive');
+  }else if(chosen&&suggested!=='General'){
+   addCheck('Trade: needs checking','Your selected trade is '+chosen+', but this listing is categorized as '+suggested+'. The title-based category may be imperfect.','review');
+  }else{
+   addCheck('Trade: not confirmed','Compare the full scope of work to the services your business can provide.','review');
+  }
+  const selected=shortState(profile?.state)||(state.value!=='ALL'?state.value:'');
+  if(selected&&x.state===selected){
+   addCheck('Location: listed state matches','The notice is indexed in '+(STATES[x.state]||x.state)+'. This does not verify the actual worksite.','positive');
+  }else{
+   addCheck('Location: verify worksite',x.state&&x.state!=='UN'
+    ?'The record is listed under '+(STATES[x.state]||x.state)+'. Check the official worksite and service area.'
+    :'The notice does not confirm a worksite. Review the issuing agency’s documents.','review');
+  }
+  const due=String(x.due_date||'').slice(0,10);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(due)){
+   addCheck('Deadline: '+prettyDate(due),
+    due<localToday()?'This recorded date is in the past. Verify whether the notice has been amended or closed.':
+    'This is the recorded closing date. Confirm the exact time, time zone, and any amendments on the source.','review');
+  }else{
+   addCheck('Deadline: not confirmed','Check the original solicitation for the submission deadline and required response method.','review');
+  }
+  addCheck('Requirements: not verified',
+   'Check vendor registration, set-aside status, licenses, insurance, bonding, capacity, and past-performance requirements.','review');
+  details.append(checks);
+  details.append(elt('p','scout-bid-guide-disclaimer',
+   'Project Scout does not determine eligibility or chances of winning. Always verify requirements and amendments with the issuing agency.'));
+  section.append(details);
+  return section;
+ }
  function makeCard(x){
   const card=elt('article','contract-card contract-enhanced');
   const body=elt('div','contract-body'),kicker=elt('div','contract-topline');
@@ -701,6 +774,7 @@ footer{padding:43px 0 22px}.footer-flex{display:grid;grid-template-columns:1.3fr
    else if(x.distance_miles===null)caution='Worksite distance unknown: this listing has no usable local ZIP or city coordinates.';
    body.append(elt('p','contract-caution',caution+' Verify the actual worksite on the official notice.'));
   }
+  body.append(makeBidGuide(x));
   if(x.source_id)body.append(elt('div','contract-record-id','Reference: '+x.source_id));
   card.append(body);
   const actions=elt('div','scout-card-actions');
